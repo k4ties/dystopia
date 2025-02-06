@@ -16,15 +16,16 @@ type Instance interface {
 	World() *world.World
 	GameMode() world.GameMode
 
-	NewPlayer(*player.Player) *Player
-
-	Players() iter.Seq[*Player]
-	Active(uuid.UUID) bool
-
-	AddPlayer(*Player)
-	RemovePlayer(*Player)
-
 	ErrorLog() *slog.Logger
+
+	NewPlayer(*player.Player) *Player
+	Players() iter.Seq[*Player]
+
+	Active(uuid.UUID) bool
+	Transfer(*Player, *world.Tx)
+
+	addToList(*Player)
+	RemoveFromList(*Player)
 }
 
 var instances = struct {
@@ -65,19 +66,19 @@ func MustByName(name string) Instance {
 
 func NewPlayer(p *player.Player) *Player {
 	pl := &Player{Player: p}
+	pl.setInstance(nil)
 
 	if err := pl.syncConn(plugin.M()); err != nil {
 		Kick(p, ErrorSponge)
 		return nil
 	}
 
+	pl.enableChunkCache()
 	return pl
 }
 
 func LookupPlayer(pl *player.Player) *Player {
-	allInstances := slices.Collect(maps.Values(instances.v))
-
-	for _, inst := range allInstances {
+	for _, inst := range AllInstances() {
 		if inst.Active(pl.UUID()) {
 			for p := range inst.Players() {
 				if p.UUID() == pl.UUID() {
@@ -90,3 +91,36 @@ func LookupPlayer(pl *player.Player) *Player {
 
 	return nil
 }
+
+func AllInstances() []Instance {
+	instances.mu.RLock()
+	defer instances.mu.RUnlock()
+
+	return slices.Collect(maps.Values(instances.v))
+}
+
+func AllInstancesName() []string {
+	var names []string
+
+	instances.mu.RLock()
+	for name := range instances.v {
+		names = append(names, name)
+	}
+	instances.mu.RUnlock()
+
+	return names
+}
+
+var Nop = nopInstance{}
+
+type nopInstance struct{}
+
+func (n nopInstance) World() *world.World              { return nil }
+func (n nopInstance) GameMode() world.GameMode         { return nil }
+func (n nopInstance) ErrorLog() *slog.Logger           { return nil }
+func (n nopInstance) NewPlayer(*player.Player) *Player { return nil }
+func (n nopInstance) Players() iter.Seq[*Player]       { return nil }
+func (n nopInstance) Active(uuid.UUID) bool            { return false }
+func (n nopInstance) Transfer(*Player, *world.Tx)      {}
+func (n nopInstance) addToList(*Player)                {}
+func (n nopInstance) RemoveFromList(*Player)           {}

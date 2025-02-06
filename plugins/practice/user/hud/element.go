@@ -46,3 +46,7 @@ func (e Element) String() string {
 
 	panic("unknown element " + strconv.Itoa(int(e)))
 }
+
+func All() []Element {
+	return []Element{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+}

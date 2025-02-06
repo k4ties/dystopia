@@ -20,15 +20,16 @@ type Config struct {
 	} `yaml:"Whitelist"`
 
 	Advanced struct {
-		Port      uint16 `yaml:"Port"`
-		XBLAuth   bool   `yaml:"XBOX Authentication"`
-		CachePath string `yaml:"Cache Path"`
+		Port         uint16 `yaml:"Port"`
+		XBLAuth      bool   `yaml:"XBOX-Authentication"`
+		CachePath    string `yaml:"Cache-Path"`
+		DefaultWorld string `yaml:"Default-World"`
 	} `yaml:"Advanced"`
 
 	Resources struct {
 		Path       string `yaml:"Path"`
 		Required   bool   `yaml:"Required"`
-		ContentKey string `yaml:"Content Key"`
+		ContentKey string `yaml:"Content-Key"`
 	} `yaml:"Resources"`
 }
 
@@ -42,6 +43,12 @@ func (c Config) convert() server.UserConfig {
 
 	d.World.SaveData = false
 	d.World.Folder = c.Advanced.CachePath + "/world"
+
+	worldFolder := c.Advanced.DefaultWorld
+
+	if _, err := os.Stat(worldFolder); os.IsNotExist(err) || worldFolder == "" {
+		d.World.Folder = worldFolder
+	}
 
 	d.Players.SaveData = false
 	d.Players.Folder = c.Advanced.CachePath + "/players"
@@ -103,6 +110,7 @@ func DefaultConfig() Config {
 	c.Advanced.CachePath = "assets"
 	c.Advanced.Port = 19132
 	c.Advanced.XBLAuth = true
+	c.Advanced.DefaultWorld = ""
 
 	c.Whitelist.Enabled = false
 	c.Whitelist.Players = []string{"player1", "player2"}

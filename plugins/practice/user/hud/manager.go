@@ -4,22 +4,26 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
-type Manager interface {
+type Writeable interface {
 	WritePacket(pk packet.Packet) error
 }
 
-func Hide(m Manager, e ...Element) {
-	_ = m.WritePacket(&packet.SetHud{
-		Elements:   toBytes(e...),
-		Visibility: packet.HudVisibilityHide,
-	})
+func Hide(m Writeable, e ...Element) {
+	if len(e) > 0 {
+		_ = m.WritePacket(&packet.SetHud{
+			Elements:   toBytes(e...),
+			Visibility: packet.HudVisibilityHide,
+		})
+	}
 }
 
-func Reset(m Manager, e ...Element) {
-	_ = m.WritePacket(&packet.SetHud{
-		Elements:   toBytes(e...),
-		Visibility: packet.HudVisibilityReset,
-	})
+func Reset(m Writeable, e ...Element) {
+	if len(e) > 0 {
+		_ = m.WritePacket(&packet.SetHud{
+			Elements:   toBytes(e...),
+			Visibility: packet.HudVisibilityReset,
+		})
+	}
 }
 
 func toBytes(e ...Element) []byte {

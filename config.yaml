@@ -1,0 +1,16 @@
+Dystopia:
+    MOTD: <red>Dystopia</red>
+    SubName: ""
+Whitelist:
+    Enabled: true
+    Players:
+        - i went tho
+Advanced:
+    Port: 19132
+    XBOX-Authentication: true
+    Cache-Path: assets
+    Default-World: ""
+Resources:
+    Path: assets/resources
+    Required: true
+    Content-Key: enter key here

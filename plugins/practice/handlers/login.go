@@ -9,8 +9,6 @@ import (
 	"sync"
 )
 
-var _ plugin.PlayerHandler = (*Login)(nil)
-
 type Login struct {
 	plugin.NopPlayerHandler
 
@@ -45,11 +43,12 @@ func (l *Login) HandleLogin(ctx *event.Context[session.Conn]) {
 	if l.whitelisted.Load() {
 		name := ctx.Val().IdentityData().DisplayName
 
-		if _, ok := l.players.Load(name); !ok { // if we cannot load player from map, then this player is not online
+		if _, ok := l.players.Load(name); !ok { // if we cannot load player from map, then this player is not whitelisted
 			_ = ctx.Val().WritePacket(&packet.Disconnect{
 				Message: "Server is whitelisted.",
 			})
 			ctx.Cancel()
+			return
 		}
 	}
 }

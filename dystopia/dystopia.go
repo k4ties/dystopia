@@ -1,10 +1,12 @@
 package dystopia
 
 import (
+	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/player/chat"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
+	"github.com/k4ties/df-plugin/example/npc"
 	"github.com/k4ties/dystopia/plugins/practice"
 	"github.com/k4ties/dystopia/plugins/practice/handlers"
-	"github.com/sandertv/gophertunnel/minecraft/text"
 	"log/slog"
 )
 
@@ -23,10 +25,16 @@ func New(l *slog.Logger, c Config) *Dystopia {
 }
 
 func (d *Dystopia) setup() {
-	d.m = plugin.NewManager(d.l, text.Colourf(d.c.Dystopia.SubName), d.c.convert())
-	d.m.ToggleStatusCommand()
+	d.m = plugin.NewManager(plugin.ManagerConfig{
+		Logger:     d.l,
+		UserConfig: d.c.convert(),
+		SubName:    "",
+	})
 
-	d.m.Register(practice.Plugin(d.loginHandler(), d.c.Advanced.CachePath+"/worlds"))
+	d.m = d.m.WithPlayerProvider(practice.Provider(cube.Rotation{180, 0}, d.m))
+
+	d.m.ToggleStatusCommand()
+	d.m.Register(practice.Plugin(d.loginHandler(), d.c.Advanced.CachePath+"/worlds"), npc.Plugin())
 }
 
 func (d *Dystopia) loginHandler() *handlers.Login {
@@ -34,6 +42,8 @@ func (d *Dystopia) loginHandler() *handlers.Login {
 }
 
 func (d *Dystopia) Start() {
+	chat.Global.Subscribe(chat.StdoutSubscriber{})
+
 	d.m.Srv().CloseOnProgramEnd()
 	d.m.ListenServer()
 }

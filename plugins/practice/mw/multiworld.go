@@ -103,6 +103,8 @@ func (m *Manager) CreateWorld(name string) (*world.World, error) {
 	w.StopThundering()
 	w.StopRaining()
 
+	w.Handle(Handler{})
+
 	m.worldsMu.Lock()
 	m.worlds[name] = w
 	m.worldsMu.Unlock()

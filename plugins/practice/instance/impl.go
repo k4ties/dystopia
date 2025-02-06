@@ -1,13 +1,18 @@
 package instance
 
 import (
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
+	"github.com/k4ties/dystopia/plugins/practice/user/hud"
 	"iter"
 	"log/slog"
 	"maps"
+	"math"
+	"slices"
 	"sync"
 )
 
@@ -19,6 +24,121 @@ type Impl struct {
 
 	world    *world.World
 	gameMode world.GameMode
+
+	hidden     []hud.Element
+	defaultRot cube.Rotation
+}
+
+func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
+	if i.Active(pl.UUID()) {
+		//panic("cannot transfer player that is already active")
+		return
+	}
+
+	FadeInCamera(pl.c, 0.5, false)
+
+	if pl.Instance() != Nop {
+		if imp, ok := pl.Instance().(interface {
+			Hidden() []hud.Element
+		}); ok {
+			for _, elem := range imp.Hidden() {
+				if !i.isHidden(elem) {
+					_ = pl.ResetElements(elem)
+				}
+			}
+		}
+
+		pl.Instance().RemoveFromList(pl)
+	}
+
+	if !i.inWorld(tx) {
+		tx.RemoveEntity(pl)
+
+		i.World().Exec(func(tx *world.Tx) {
+			tx.AddEntity(pl.H())
+		})
+	}
+
+	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+		p.SetGameMode(i.gameMode)
+
+		currentRot := p.Rotation()
+		maxRot := p.Rotation()
+
+		yawDiff := findAngleDifference(currentRot.Yaw(), maxRot.Yaw()) - currentRot.Yaw()
+		pitchDiff := findPitchDifference(currentRot.Pitch(), maxRot.Pitch()) - currentRot.Pitch()
+
+		p.Move(mgl64.Vec3{}, yawDiff, pitchDiff)
+		p.Teleport(i.World().Spawn().Vec3Centre())
+	})
+
+	i.addToList(pl)
+	_ = pl.HideElements(i.hidden...)
+}
+
+func findPitchDifference(currentPitch float64, targetPitch float64) float64 {
+	diff := targetPitch - currentPitch
+	if math.Abs(diff) > 180 {
+		if diff < 0 {
+			diff += 360
+		} else {
+			diff -= 360
+		}
+	}
+	return diff
+}
+
+func findAngleDifference(yaw float64, expectedYaw float64) float64 {
+	diff := math.Mod(expectedYaw-yaw+1080, 360) - 180
+	return diff
+}
+
+func (i *Impl) Hidden() []hud.Element {
+	return i.hidden
+}
+
+func (i *Impl) addToList(p *Player) {
+	if p == nil {
+		return
+	}
+
+	if i.Active(p.UUID()) {
+		panic("player is already in instance")
+	}
+
+	i.playersMu.Lock()
+	i.players[p.UUID()] = p
+	i.playersMu.Unlock()
+
+	p.setInstance(i)
+}
+
+func (i *Impl) RemoveFromList(p *Player) {
+	if !i.Active(p.UUID()) {
+		panic("cannot remove from instance player that is not in instance")
+	}
+
+	i.playersMu.Lock()
+	delete(i.players, p.UUID())
+	i.playersMu.Unlock()
+
+	p.setInstance(nil)
+}
+
+func (i *Impl) inWorld(tx *world.Tx) (found bool) {
+	if tx.World() == i.World() {
+		found = true
+	}
+
+	return
+}
+
+func (i *Impl) isHidden(e hud.Element) bool {
+	return slices.Contains(i.hidden, e)
+}
+
+func (i *Impl) DefaultRotation() cube.Rotation {
+	return i.defaultRot
 }
 
 func (i *Impl) World() *world.World {
@@ -33,53 +153,6 @@ func (i *Impl) Players() iter.Seq[*Player] {
 	i.playersMu.RLock()
 	defer i.playersMu.RUnlock()
 	return maps.Values(i.players)
-}
-
-func (i *Impl) AddPlayer(pl *Player) {
-	if pl == nil {
-		return
-	}
-
-	if i.Active(pl.UUID()) {
-		panic("player is already in instance")
-	}
-
-	if pl.Instance() != nil {
-		pl.Instance().RemovePlayer(pl)
-	}
-
-	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
-		tx.RemoveEntity(p) // remove from current world
-
-		p.SetGameMode(i.gameMode)
-		p.Teleport(i.World().Spawn().Vec3Centre())
-
-		i.World().Exec(func(tx *world.Tx) {
-			tx.AddEntity(p.H())
-		})
-	})
-
-	i.playersMu.Lock()
-	i.players[pl.UUID()] = pl
-	i.playersMu.Unlock()
-
-	pl.setInstance(i)
-}
-
-func (i *Impl) RemovePlayer(pl *Player) {
-	if !i.Active(pl.UUID()) {
-		panic("player is not in instance")
-	}
-
-	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
-		tx.RemoveEntity(p)
-	})
-
-	i.playersMu.Lock()
-	delete(i.players, pl.UUID())
-	i.playersMu.Unlock()
-
-	pl.setInstance(nil)
 }
 
 func (i *Impl) Active(u uuid.UUID) bool {
@@ -102,9 +175,10 @@ func (i *Impl) NewPlayer(p *player.Player) *Player {
 		return nil
 	}
 
+	pl.enableChunkCache()
 	return pl
 }
 
-func New(w *world.World, g world.GameMode, errorLogger *slog.Logger) Instance {
-	return &Impl{players: make(map[uuid.UUID]*Player), world: w, gameMode: g, errorLog: errorLogger}
+func New(w *world.World, g world.GameMode, errorLogger *slog.Logger, defaultRot cube.Rotation, hidden ...hud.Element) Instance {
+	return &Impl{players: make(map[uuid.UUID]*Player), world: w, gameMode: g, errorLog: errorLogger, defaultRot: defaultRot, hidden: hidden}
 }
