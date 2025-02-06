@@ -39,6 +39,7 @@ func (c Config) convert() server.UserConfig {
 
 	d.Resources.Folder = c.Resources.Path
 	d.Resources.Required = c.Resources.Required
+
 	d.Resources.AutoBuildPack = false
 
 	d.World.SaveData = false

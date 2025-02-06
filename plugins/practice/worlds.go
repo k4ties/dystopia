@@ -1,24 +1,41 @@
 package practice
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
+	_ "embed"
 	"github.com/df-mc/dragonfly/server/world"
-	"github.com/go-gl/mathgl/mgl64"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
+	"github.com/k4ties/dystopia/dystopia/embeddable"
+	"github.com/k4ties/dystopia/plugins/practice/ffa"
+	"github.com/k4ties/dystopia/plugins/practice/ffa/nodebuff"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
-	"github.com/k4ties/dystopia/plugins/practice/instance/lobby"
 	"github.com/k4ties/dystopia/plugins/practice/mw"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
 )
 
+type WorldConfig struct {
+	Config struct {
+		Name string
+
+		Rotation [2]float64
+		Spawn    [3]float64
+
+		HeightThreshold instance.HeightThresholdConfig
+	}
+}
+
 var (
-	lobbySpawn = mgl64.Vec3{-1, 49, -1}
-	arenaSpawn = mgl64.Vec3{666, -34, 666}
+	//go:embed lobby.json
+	lobbyJson []byte
+	//go:embed arena.json
+	arenaJson []byte
+)
+
+var (
+	lobbyConfig = embeddable.MustJSON[WorldConfig](lobbyJson)
+	arenaConfig = embeddable.MustJSON[WorldConfig](arenaJson)
 )
 
 func setupWorldsManager(m *plugin.Manager, path string) {
-	m.Srv().World().SetSpawn(cube.Pos{100000, 1000, 100000})
-
 	if err := mw.NewManager(m.Srv().World(), path, m.Logger()); err != nil {
 		panic(err)
 	}
@@ -28,12 +45,14 @@ func setupWorldsManager(m *plugin.Manager, path string) {
 }
 
 func registerLobby(mn *mw.Manager, m *plugin.Manager) {
-	w, ok := mn.World("lobby")
+	name := lobbyConfig.Config.Name
+
+	w, ok := mn.World(name)
 	if !ok {
-		panic("must create a world called lobby")
+		panic("no world with specified name on the config")
 	}
 
-	if err := mn.SetSpawn("lobby", lobbySpawn); err != nil {
+	if err := mn.SetSpawn(name, lobbyConfig.Config.Spawn); err != nil {
 		panic(err)
 	}
 
@@ -41,20 +60,27 @@ func registerLobby(mn *mw.Manager, m *plugin.Manager) {
 		hud.Health, hud.Hunger,
 	}
 
-	in := instance.New(w, world.GameModeSurvival, m.Logger(), lobby.Rotation(), hidden...)
-	instance.Register("lobby", in)
+	in := instance.New(w, world.GameModeSurvival, m.Logger(), lobbyConfig.Config.Rotation, lobbyConfig.Config.HeightThreshold, hidden...)
+	instance.Register(name, in)
 }
 
 func registerNodebuff(mn *mw.Manager, m *plugin.Manager) {
-	w, ok := mn.World("arena")
+	name := arenaConfig.Config.Name
+
+	w, ok := mn.World(name)
 	if !ok {
 		panic("must create a world called arena")
 	}
 
-	if err := mn.SetSpawn("arena", arenaSpawn); err != nil {
+	if err := mn.SetSpawn(name, arenaConfig.Config.Spawn); err != nil {
 		panic(err)
 	}
 
-	in := instance.New(w, world.GameModeSurvival, m.Logger(), cube.Rotation{})
-	instance.Register("nodebuff", in)
+	in := instance.New(w, world.GameModeSurvival, m.Logger(), arenaConfig.Config.Rotation, arenaConfig.Config.HeightThreshold)
+	f := ffa.New(in.(*instance.Impl), nodebuff.Kit, ffa.Config{
+		Name: "NoDebuff",
+		Icon: "textures/items/potion_bottle_splash_heal.png",
+	})
+
+	instance.Register("nodebuff", f)
 }

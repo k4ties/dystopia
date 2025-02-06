@@ -3,6 +3,7 @@ package command
 import (
 	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/df-mc/dragonfly/server/player"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 	"github.com/sandertv/gophertunnel/minecraft/text"
 )
@@ -26,4 +27,8 @@ func p(s cmd.Source) *player.Player {
 
 func inPl(s cmd.Source) *instance.Player {
 	return instance.LookupPlayer(p(s))
+}
+
+func dead(s cmd.Source) bool {
+	return p(s).GameMode() == world.GameModeSpectator
 }

@@ -3,7 +3,7 @@ package command
 import (
 	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/df-mc/dragonfly/server/world"
-	"github.com/k4ties/dystopia/plugins/practice/instance/nodebuff"
+	"github.com/k4ties/dystopia/plugins/practice/ffa/nodebuff"
 	"github.com/sandertv/gophertunnel/minecraft/text"
 )
 
@@ -13,6 +13,11 @@ type Arena struct {
 }
 
 func (Arena) Run(s cmd.Source, o *cmd.Output, tx *world.Tx) {
+	if dead(s) {
+		o.Errorf("Cannot teleport while you're dead")
+		return
+	}
+
 	n := nodebuff.Instance()
 	n.Transfer(inPl(s), tx)
 

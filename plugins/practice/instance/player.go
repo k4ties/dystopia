@@ -6,6 +6,7 @@ import (
 	"github.com/df-mc/dragonfly/server/session"
 	"github.com/df-mc/dragonfly/server/world"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
+	"github.com/k4ties/dystopia/plugins/practice/kit"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -22,39 +23,55 @@ type Player struct {
 	c session.Conn
 }
 
-func (p *Player) setInstance(i Instance) {
+func (pl *Player) setInstance(i Instance) {
 	if i == nil {
 		i = Nop
 	}
 
-	p.instanceMu.Lock()
-	defer p.instanceMu.Unlock()
-	p.instance = i
+	pl.instanceMu.Lock()
+	defer pl.instanceMu.Unlock()
+	pl.instance = i
 }
 
-func (p *Player) Instance() Instance {
-	p.instanceMu.Lock()
-	defer p.instanceMu.Unlock()
+func (pl *Player) Instance() Instance {
+	pl.instanceMu.Lock()
+	defer pl.instanceMu.Unlock()
 
-	if p.instance == nil {
+	if pl.instance == nil {
 		return Nop
 	}
 
-	return p.instance
+	return pl.instance
 }
 
-func (p *Player) ExecSafe(f func(*player.Player, *world.Tx)) {
-	go p.H().ExecWorld(func(tx *world.Tx, e world.Entity) {
+type WithinTransaction func(p *player.Player)
+
+func (pl *Player) ExecSafe(f func(*player.Player, *world.Tx), w ...WithinTransaction) {
+	go pl.H().ExecWorld(func(tx *world.Tx, e world.Entity) {
 		f(e.(*player.Player), tx)
+
+		go func() {
+			for _, w := range w {
+				w(e.(*player.Player))
+			}
+		}()
 	})
 }
 
-func (p *Player) Conn() (session.Conn, bool) {
-	return p.c, p.c != nil
+func (pl *Player) SendKit(k kit.Kit, tx *world.Tx) {
+	pl.Reset(tx, func(*player.Player) {
+		pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+			kit.Send(k, p)
+		})
+	})
 }
 
-func (p *Player) HideElements(e ...hud.Element) error {
-	if conn, ok := p.Conn(); ok {
+func (pl *Player) Conn() (session.Conn, bool) {
+	return pl.c, pl.c != nil
+}
+
+func (pl *Player) HideElements(e ...hud.Element) error {
+	if conn, ok := pl.Conn(); ok {
 		hud.Hide(conn, e...)
 		return nil
 	}
@@ -62,18 +79,67 @@ func (p *Player) HideElements(e ...hud.Element) error {
 	return errors.New("cannot get player connection")
 }
 
-func (p *Player) World() *world.World {
+func resetFunctions(p *player.Player) {
+	p.Inventory().Clear()
+	p.Armour().Clear()
+
+	for _, e := range p.Effects() {
+		p.RemoveEffect(e.Type())
+	}
+
+	p.SetGameMode(world.GameModeSurvival)
+
+	p.CloseForm()
+	p.CloseDialogue()
+
+	p.EnableInstantRespawn()
+	p.SetMobile()
+
+	p.ShowCoordinates()
+}
+
+func (pl *Player) Reset(tx *world.Tx, after ...func(p *player.Player)) {
+	selfReset := func(pl *Player) {
+		pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+			resetFunctions(p)
+
+			for _, f := range after {
+				f(p)
+			}
+		})
+	}
+
+	if tx == nil {
+		selfReset(pl)
+		return
+	}
+
+	e, ok := pl.H().Entity(tx)
+	if !ok {
+		selfReset(pl)
+		return
+	}
+
+	p := e.(*player.Player)
+	resetFunctions(p)
+
+	for _, f := range after {
+		f(p)
+	}
+}
+
+func (pl *Player) World() *world.World {
 	var w *world.World
 
-	p.ExecSafe(func(player *player.Player, tx *world.Tx) {
+	pl.ExecSafe(func(player *player.Player, tx *world.Tx) {
 		w = tx.World()
 	})
 
 	return w
 }
 
-func (p *Player) ResetElements(e ...hud.Element) error {
-	if conn, ok := p.Conn(); ok {
+func (pl *Player) ResetElements(e ...hud.Element) error {
+	if conn, ok := pl.Conn(); ok {
 		hud.Reset(conn, e...)
 		return nil
 	}
@@ -81,18 +147,18 @@ func (p *Player) ResetElements(e ...hud.Element) error {
 	return errors.New("cannot get player connection")
 }
 
-func (p *Player) syncConn(m *plugin.Manager) error {
-	c, ok := m.Conn(p.Name())
+func (pl *Player) syncConn(m *plugin.Manager) error {
+	c, ok := m.Conn(pl.Name())
 	if !ok {
 		return errors.New("could not find connection")
 	}
 
-	p.c = c
+	pl.c = c
 	return nil
 }
 
-func (p *Player) enableChunkCache() {
-	if c, ok := p.Conn(); ok {
+func (pl *Player) enableChunkCache() {
+	if c, ok := pl.Conn(); ok {
 		_ = c.WritePacket(&packet.ClientCacheStatus{
 			Enabled: true,
 		})

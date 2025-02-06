@@ -1,37 +1,83 @@
 package handlers
 
 import (
+	_ "embed"
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/entity"
 	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/player"
+	"github.com/df-mc/dragonfly/server/player/title"
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/go-gl/mathgl/mgl64"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
+	"github.com/k4ties/dystopia/dystopia/embeddable"
+	"github.com/k4ties/dystopia/plugins/practice/ffa"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 	"github.com/k4ties/dystopia/plugins/practice/instance/lobby"
+	"github.com/k4ties/dystopia/plugins/practice/kit"
+	"github.com/sandertv/gophertunnel/minecraft/text"
 	"time"
 )
 
 const SixThousandMinutes = time.Hour * 10000
 
+func NewPractice(i instance.Instance) *Practice {
+	return &Practice{i: i}
+}
+
 type Practice struct {
 	Decliner
 	plugin.NopPlayerHandler
+
+	i instance.Instance // default instance
 }
 
-func (Practice) HandleSpawn(p *player.Player) {
-	p.SetImmobile()
-
+func (pr Practice) HandleSpawn(p *player.Player) {
 	if c, ok := plugin.M().Conn(p.Name()); ok {
 		instance.FadeInCamera(c, 1.5, false)
 	}
 
-	resetPlayer(p)
-	sendDefaultEffects(p)
-
-	pl := instance.NewPlayer(p)
-	lobby.Instance().Transfer(pl, p.Tx())
+	pr.spawnRoutine(p, p.Tx())
 }
+
+func (pr Practice) spawnRoutine(p *player.Player, tx *world.Tx) {
+	// player must be in lobby instance on spawn
+
+	p.SetImmobile()
+	pl := instance.NewPlayer(p)
+
+	pr.i.Transfer(pl, tx)
+	if pr.i.Active(p.UUID()) {
+		p.Teleport(pr.i.World().Spawn().Vec3Centre())
+	}
+
+	pl.SendKit(lobby.Kit, tx)
+}
+
+func (pr Practice) HandleMove(ctx *player.Context, newPos mgl64.Vec3, newRot cube.Rotation) {
+	if p := instance.LookupPlayer(ctx.Val()); p != nil {
+		if i := p.Instance(); i != instance.Nop {
+			if i.HeightThresholdEnabled() {
+				if newPos.Y() <= float64(i.HeightThreshold()) && p.GameMode() == i.GameMode() {
+					switch i.HeightThresholdMode() {
+					case instance.EventTeleportToSpawn:
+						i.Transfer(p, p.Tx())
+						pr.spawnRoutine(ctx.Val(), nil)
+					case instance.EventDeath:
+						var nop bool
+						pr.HandleDeath(ctx.Val(), intersectThresholdCause{}, &nop)
+					}
+				}
+			}
+		}
+	}
+}
+
+type intersectThresholdCause struct{}
+
+func (i intersectThresholdCause) ReducedByArmour() bool     { return false }
+func (i intersectThresholdCause) ReducedByResistance() bool { return false }
+func (i intersectThresholdCause) Fire() bool                { return false }
 
 func (Practice) HandleQuit(p *player.Player) {
 	if pl := instance.LookupPlayer(p); pl != nil {
@@ -40,6 +86,73 @@ func (Practice) HandleQuit(p *player.Player) {
 		}
 	}
 }
+
+func (pr Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keepInv *bool) {
+	*keepInv = true
+	dfp.Respawn()
+
+	if pl := instance.LookupPlayer(dfp); pl != nil {
+		pl.SendKit(kit.Empty, dfp.Tx())
+	}
+
+	if _, ok := src.(intersectThresholdCause); ok {
+		if pl := instance.LookupPlayer(dfp); pl != nil {
+			if i := pl.Instance(); i != instance.Nop {
+				i.Messagef("<red>%s</red> fell into the void.", dfp.Name())
+			}
+		}
+	}
+
+	var killerName = "..."
+	if a, ok := src.(entity.AttackDamageSource); ok {
+		if p, ok := a.Attacker.(*player.Player); ok {
+			killerName = p.Name()
+		}
+	}
+
+	dur := time.Millisecond * 500
+
+	deadTitle := title.New(text.Colourf("<red>YOU ARE DEAD</red>"))
+	deadTitle = deadTitle.WithDuration(dur * 5).WithFadeInDuration(dur).WithFadeOutDuration(dur).WithSubtitle(killerName)
+
+	dfp.SendTitle(deadTitle)
+	dfp.SetGameMode(world.GameModeSpectator)
+
+	dfp.Teleport(dfp.Position().Add(mgl64.Vec3{0, 5, 0}))
+
+	time.AfterFunc(time.Second*3, func() {
+		if plugin.M().Online(dfp.UUID()) {
+			if pl := instance.LookupPlayer(dfp); pl != nil {
+				pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+					pr.i.Transfer(pl, tx)
+					pr.spawnRoutine(p, tx)
+				})
+			}
+		}
+	})
+}
+
+func (Practice) HandleItemUse(ctx *player.Context) {
+	i, _ := ctx.Val().HeldItems()
+
+	switch kit.LoadIdentifier(i) {
+	case lobby.KitFFAItemIdentifier:
+		ctx.Val().SendForm(ffa.NewForm())
+	}
+}
+
+type kbConfig struct {
+	KnockBack struct {
+		Force    float64
+		Height   float64
+		Immunity int
+	}
+}
+
+//go:embed knockback.json
+var knockbackConfig []byte
+
+var KnockbackConfig = embeddable.MustJSON[kbConfig](knockbackConfig)
 
 func (Practice) HandleHurt(ctx *player.Context, damage *float64, immune bool, attackImmunity *time.Duration, src world.DamageSource) {
 	if lobby.Instance().Active(ctx.Val().UUID()) {
@@ -102,40 +215,12 @@ func sendDefaultEffects(p *player.Player) {
 	p.AddEffect(effect.New(effect.NightVision, 1, SixThousandMinutes).WithoutParticles())
 }
 
-func resetPlayer(p *player.Player) {
-	p.Inventory().Clear()
-	p.Armour().Clear()
-
-	for _, e := range p.Effects() {
-		p.RemoveEffect(e.Type())
-	}
-
-	p.SetHeldItems(item.Stack{}, item.Stack{}) // clears totem
-	p.SetGameMode(world.GameModeSurvival)
-
-	p.CloseForm()
-	p.CloseDialogue()
-
-	p.EnableInstantRespawn()
-	p.SetMobile()
-
-	p.ShowCoordinates()
-}
-
 func welcomePlayer(p *player.Player) {
 	_ = p.SetHeldSlot(4)
 
-}
+	welcomeTitle := title.New(text.Colourf("<red>Dystopia</red>"))
+	welcomeTitle = welcomeTitle.WithFadeInDuration(time.Second * 2).WithDuration(time.Second).WithFadeOutDuration(time.Second)
+	welcomeTitle = welcomeTitle.WithSubtitle(text.Colourf("Welcome, <grey>%s</grey>!", p.Name()))
 
-//future fps counter implementation
-//p.UpdateDiagnostics(session.Diagnostics{
-//AverageFramesPerSecond:        -1,
-//AverageServerSimTickTime:      -1,
-//AverageClientSimTickTime:      -1,
-//AverageBeginFrameTime:         -1,
-//AverageInputTime:              -1,
-//AverageRenderTime:             -1,
-//AverageEndFrameTime:           -1,
-//AverageRemainderTimePercent:   -1,
-//AverageUnaccountedTimePercent: -1,
-//})
+	p.SendTitle(welcomeTitle)
+}

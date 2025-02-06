@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"github.com/df-mc/atomic"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
+	"github.com/sandertv/gophertunnel/minecraft/text"
 	"iter"
 	"log/slog"
 	"maps"
@@ -27,6 +29,32 @@ type Impl struct {
 
 	hidden     []hud.Element
 	defaultRot cube.Rotation
+
+	heightThresholdStatus atomic.Bool
+	heightThreshold       int
+	heightThresholdMode   OnIntersectThreshold
+}
+
+func (i *Impl) Messagef(s string, args ...any) {
+	for p := range i.Players() {
+		p.Message(text.Colourf(s, args...))
+	}
+}
+
+func (i *Impl) HeightThresholdMode() OnIntersectThreshold {
+	return i.heightThresholdMode
+}
+
+func (i *Impl) HeightThresholdEnabled() bool {
+	return i.heightThresholdStatus.Load()
+}
+
+func (i *Impl) ToggleHeightThreshold() {
+	i.heightThresholdStatus.Store(!i.heightThresholdStatus.Load())
+}
+
+func (i *Impl) HeightThreshold() int {
+	return i.heightThreshold
 }
 
 func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
@@ -61,19 +89,23 @@ func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
 
 	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
 		p.SetGameMode(i.gameMode)
-
-		currentRot := p.Rotation()
-		maxRot := p.Rotation()
-
-		yawDiff := findAngleDifference(currentRot.Yaw(), maxRot.Yaw()) - currentRot.Yaw()
-		pitchDiff := findPitchDifference(currentRot.Pitch(), maxRot.Pitch()) - currentRot.Pitch()
-
-		p.Move(mgl64.Vec3{}, yawDiff, pitchDiff)
 		p.Teleport(i.World().Spawn().Vec3Centre())
+
+		i.Rotate(p)
 	})
 
 	i.addToList(pl)
 	_ = pl.HideElements(i.hidden...)
+}
+
+func (i *Impl) Rotate(p *player.Player) {
+	currentRot := p.Rotation()
+	maxRot := p.Rotation()
+
+	yawDiff := findAngleDifference(currentRot.Yaw(), maxRot.Yaw()) - currentRot.Yaw()
+	pitchDiff := findPitchDifference(currentRot.Pitch(), maxRot.Pitch()) - currentRot.Pitch()
+
+	p.Move(mgl64.Vec3{}, yawDiff, pitchDiff)
 }
 
 func findPitchDifference(currentPitch float64, targetPitch float64) float64 {
@@ -179,6 +211,31 @@ func (i *Impl) NewPlayer(p *player.Player) *Player {
 	return pl
 }
 
-func New(w *world.World, g world.GameMode, errorLogger *slog.Logger, defaultRot cube.Rotation, hidden ...hud.Element) Instance {
-	return &Impl{players: make(map[uuid.UUID]*Player), world: w, gameMode: g, errorLog: errorLogger, defaultRot: defaultRot, hidden: hidden}
+type OnIntersectThreshold int
+
+const (
+	EventDeath OnIntersectThreshold = iota
+	EventTeleportToSpawn
+)
+
+type HeightThresholdConfig struct {
+	Enabled   bool
+	Threshold int
+	OnDeath   OnIntersectThreshold
+}
+
+var DisabledHeightThreshold = HeightThresholdConfig{
+	Enabled: false,
+}
+
+func New(w *world.World, g world.GameMode, errorLogger *slog.Logger, defaultRot cube.Rotation, htc HeightThresholdConfig, hidden ...hud.Element) Instance {
+	i := &Impl{players: make(map[uuid.UUID]*Player), world: w, gameMode: g, errorLog: errorLogger, defaultRot: defaultRot, hidden: hidden}
+
+	if htc.Enabled {
+		i.ToggleHeightThreshold()
+		i.heightThreshold = htc.Threshold
+		i.heightThresholdMode = htc.OnDeath
+	}
+
+	return i
 }

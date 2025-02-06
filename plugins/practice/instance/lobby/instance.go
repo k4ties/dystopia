@@ -1,16 +1,20 @@
 package lobby
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 )
 
 const name = "lobby"
 
-func Rotation() cube.Rotation {
-	return cube.Rotation{180, 0}
+type impl struct {
+	*instance.Impl
 }
 
 func Instance() instance.Instance {
-	return instance.MustByName(name)
+	return &impl{Impl: instance.MustByName(name).(*instance.Impl)}
+}
+
+func (i *impl) Transfer(p *instance.Player, tx *world.Tx) {
+	i.Impl.Transfer(p, tx)
 }

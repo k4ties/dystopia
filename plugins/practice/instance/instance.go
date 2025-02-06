@@ -26,6 +26,14 @@ type Instance interface {
 
 	addToList(*Player)
 	RemoveFromList(*Player)
+
+	HeightThresholdEnabled() bool
+	HeightThresholdMode() OnIntersectThreshold
+
+	ToggleHeightThreshold()
+	HeightThreshold() int
+
+	Messagef(string, ...any)
 }
 
 var instances = struct {
@@ -115,12 +123,17 @@ var Nop = nopInstance{}
 
 type nopInstance struct{}
 
-func (n nopInstance) World() *world.World              { return nil }
-func (n nopInstance) GameMode() world.GameMode         { return nil }
-func (n nopInstance) ErrorLog() *slog.Logger           { return nil }
-func (n nopInstance) NewPlayer(*player.Player) *Player { return nil }
-func (n nopInstance) Players() iter.Seq[*Player]       { return nil }
-func (n nopInstance) Active(uuid.UUID) bool            { return false }
-func (n nopInstance) Transfer(*Player, *world.Tx)      {}
-func (n nopInstance) addToList(*Player)                {}
-func (n nopInstance) RemoveFromList(*Player)           {}
+func (n nopInstance) Messagef(string, ...any)                   {}
+func (n nopInstance) HeightThresholdMode() OnIntersectThreshold { return -1 }
+func (n nopInstance) HeightThresholdEnabled() bool              { return false }
+func (n nopInstance) ToggleHeightThreshold()                    {}
+func (n nopInstance) HeightThreshold() int                      { return -1 }
+func (n nopInstance) World() *world.World                       { return nil }
+func (n nopInstance) GameMode() world.GameMode                  { return nil }
+func (n nopInstance) ErrorLog() *slog.Logger                    { return nil }
+func (n nopInstance) NewPlayer(*player.Player) *Player          { return nil }
+func (n nopInstance) Players() iter.Seq[*Player]                { return nil }
+func (n nopInstance) Active(uuid.UUID) bool                     { return false }
+func (n nopInstance) Transfer(*Player, *world.Tx)               {}
+func (n nopInstance) addToList(*Player)                         {}
+func (n nopInstance) RemoveFromList(*Player)                    {}
