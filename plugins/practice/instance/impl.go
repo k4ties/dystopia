@@ -63,6 +63,9 @@ func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
 		return
 	}
 
+	pl.setTransferring(true)
+	defer pl.setTransferring(false)
+
 	FadeInCamera(pl.c, 0.5, false)
 
 	if pl.Instance() != Nop {
@@ -79,11 +82,15 @@ func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
 		pl.Instance().RemoveFromList(pl)
 	}
 
+	//if e, ok := pl.H().Entity(tx); !ok || tx == nil {
+	//
+	//}
+
 	if !i.inWorld(tx) {
-		tx.RemoveEntity(pl)
+		h := tx.RemoveEntity(pl)
 
 		i.World().Exec(func(tx *world.Tx) {
-			tx.AddEntity(pl.H())
+			tx.AddEntity(h)
 		})
 	}
 

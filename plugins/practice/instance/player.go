@@ -12,6 +12,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"image/color"
 	"sync"
+	"sync/atomic"
 )
 
 type Player struct {
@@ -20,7 +21,16 @@ type Player struct {
 	instance   Instance
 	instanceMu sync.Mutex
 
-	c session.Conn
+	c            session.Conn
+	transferring atomic.Bool
+}
+
+func (pl *Player) Transferring() bool {
+	return pl.transferring.Load()
+}
+
+func (pl *Player) setTransferring(t bool) {
+	pl.transferring.Store(t)
 }
 
 func (pl *Player) setInstance(i Instance) {
@@ -94,6 +104,9 @@ func resetFunctions(p *player.Player) {
 
 	p.EnableInstantRespawn()
 	p.SetMobile()
+
+	p.SetVisible()
+	p.SetScale(1.0)
 
 	p.ShowCoordinates()
 }

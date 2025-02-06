@@ -6,25 +6,45 @@ import (
 	"github.com/k4ties/dystopia/plugins/practice/instance/lobby"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
 	"github.com/sandertv/gophertunnel/minecraft/text"
+	"slices"
+	"strings"
 	"sync/atomic"
+	"time"
 )
 
 type Instance struct {
 	*instance.Impl
 	k kit.Kit
 
-	c Config
-
+	c      Config
 	closed atomic.Bool
 }
 
 type Config struct {
 	Name string
 	Icon string
+
+	PearlCooldown time.Duration
 }
 
 func New(i *instance.Impl, k kit.Kit, c Config) *Instance {
-	return &Instance{k: k, Impl: i, c: c}
+	f := &Instance{k: k, Impl: i, c: c}
+
+	if slices.Contains(Closed.Closed, strings.ToLower(c.Name)) {
+		i.World().Exec(func(tx *world.Tx) {
+			f.Close(tx)
+		})
+	}
+
+	return f
+}
+
+func (i *Instance) HasPearCooldown() bool {
+	return i.c.PearlCooldown > 0
+}
+
+func (i *Instance) PearlCooldown() time.Duration {
+	return i.c.PearlCooldown
 }
 
 func (i *Instance) Transfer(pl *instance.Player, tx *world.Tx) {
@@ -39,6 +59,8 @@ func (i *Instance) Transfer(pl *instance.Player, tx *world.Tx) {
 
 	i.Impl.Transfer(pl, tx)
 	pl.SendKit(i.k, tx)
+
+	pl.Messagef(text.Colourf("<green>You've been teleported to the %s.</green>", i.c.Name))
 }
 
 func (i *Instance) RemoveFromList(pl *instance.Player) {
@@ -49,7 +71,7 @@ func (i *Instance) RemoveFromList(pl *instance.Player) {
 func (i *Instance) playerLen() int {
 	var l int
 
-	for _ = range i.Players() {
+	for range i.Players() {
 		l++
 	}
 
@@ -68,8 +90,8 @@ func (i *Instance) Close(tx *world.Tx) {
 	i.closed.Store(true)
 
 	for p := range i.Impl.Players() {
-		p.Messagef("<red>This game mode has been closed.</red>")
-		lobby.Instance().Transfer(p, p.Tx())
+		p.Messagef(text.Colourf("<red>This game mode has been closed.</red>"))
+		lobby.TransferWithRoutine(p, tx)
 	}
 }
 

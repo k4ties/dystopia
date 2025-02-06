@@ -22,7 +22,7 @@ var Kit = func() kit.Kit {
 
 		switch i {
 		case 1:
-			added = item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 2)).WithLore(text.Colourf("<red>dystopia</red>"))
+			added = item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 4)).WithLore(text.Colourf("<red>dystopia</red>"))
 		case 2:
 			added = item.NewStack(item.EnderPearl{}, 16).WithLore(text.Colourf("<red>dystopia</red>"))
 		default:

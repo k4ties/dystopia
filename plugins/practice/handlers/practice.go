@@ -43,7 +43,6 @@ func (pr Practice) HandleSpawn(p *player.Player) {
 func (pr Practice) spawnRoutine(p *player.Player, tx *world.Tx) {
 	// player must be in lobby instance on spawn
 
-	p.SetImmobile()
 	pl := instance.NewPlayer(p)
 
 	pr.i.Transfer(pl, tx)
@@ -58,7 +57,7 @@ func (pr Practice) HandleMove(ctx *player.Context, newPos mgl64.Vec3, newRot cub
 	if p := instance.LookupPlayer(ctx.Val()); p != nil {
 		if i := p.Instance(); i != instance.Nop {
 			if i.HeightThresholdEnabled() {
-				if newPos.Y() <= float64(i.HeightThreshold()) && p.GameMode() == i.GameMode() {
+				if newPos.Y() <= float64(i.HeightThreshold()) && p.GameMode() == i.GameMode() && !p.Transferring() {
 					switch i.HeightThresholdMode() {
 					case instance.EventTeleportToSpawn:
 						i.Transfer(p, p.Tx())
@@ -110,6 +109,14 @@ func (pr Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keepI
 		}
 	}
 
+	if killerName != "..." {
+		if pl := instance.LookupPlayer(dfp); pl != nil {
+			if i := pl.Instance(); i != instance.Nop {
+				i.Messagef("<red>%s</red> was killed by <red>%s</red>", dfp.Name(), killerName)
+			}
+		}
+	}
+
 	dur := time.Millisecond * 500
 
 	deadTitle := title.New(text.Colourf("<red>YOU ARE DEAD</red>"))
@@ -118,7 +125,10 @@ func (pr Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keepI
 	dfp.SendTitle(deadTitle)
 	dfp.SetGameMode(world.GameModeSpectator)
 
-	dfp.Teleport(dfp.Position().Add(mgl64.Vec3{0, 5, 0}))
+	dfp.Teleport(dfp.Position().Add(mgl64.Vec3{3, 2, 3}))
+
+	dfp.SetInvisible()
+	dfp.SetScale(0)
 
 	time.AfterFunc(time.Second*3, func() {
 		if plugin.M().Online(dfp.UUID()) {

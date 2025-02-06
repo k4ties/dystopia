@@ -5,10 +5,13 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/text"
 	"gopkg.in/yaml.v3"
 	"os"
+	"slices"
 	"strconv"
 )
 
 type Config struct {
+	loadedFrom string
+
 	Dystopia struct {
 		MOTD    string `yaml:"MOTD"`
 		SubName string `yaml:"SubName"`
@@ -67,6 +70,7 @@ func MustReadConfig(path string) Config {
 		// if we cannot read config, we will try to create a new one
 		c = DefaultConfig()
 		c.MustWrite(path)
+		c.loadedFrom = path
 	}
 
 	return c
@@ -84,6 +88,7 @@ func ReadConfig(path string) (Config, error) {
 		return nop, err
 	}
 
+	nop.loadedFrom = path
 	return nop, nil
 }
 
@@ -100,6 +105,21 @@ func (c Config) Write(path string) error {
 	}
 
 	return os.WriteFile(path, b, 0644)
+}
+
+func (c Config) AddWhitelistPlayer(p string) Config {
+	c.Whitelist.Players = append(c.Whitelist.Players, p)
+	return c
+}
+
+func (c Config) RemoveWhitelistPlayer(p string) Config {
+	c.Whitelist.Players = remove(c.Whitelist.Players, slices.Index(c.Whitelist.Players, p))
+	return c
+}
+
+func (c Config) ToggleWhitelist() Config {
+	c.Whitelist.Enabled = !c.Whitelist.Enabled
+	return c
 }
 
 func DefaultConfig() Config {
@@ -121,4 +141,12 @@ func DefaultConfig() Config {
 	c.Resources.ContentKey = "enter key here"
 
 	return c
+}
+
+func (c Config) syncWithFile(path string) {
+	c.MustWrite(path)
+}
+
+func remove(slice []string, index int) []string {
+	return append(slice[:index], slice[index+1:]...)
 }

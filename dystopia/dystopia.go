@@ -8,6 +8,7 @@ import (
 	"github.com/k4ties/df-plugin/example/npc"
 	"github.com/k4ties/dystopia/plugins/practice"
 	"github.com/k4ties/dystopia/plugins/practice/handlers"
+	"github.com/k4ties/dystopia/plugins/practice/handlers/whitelist"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"log/slog"
 	"os"
@@ -38,12 +39,20 @@ func (d *Dystopia) setup() {
 
 	d.m = d.m.WithPlayerProvider(practice.Provider(cube.Rotation{180, 0}, d.m))
 
+	whitelist.Setup(d.c.Whitelist.Enabled, d.c.Whitelist.Players...)
+
+	StartConsole(ConsoleConfig{
+		Logger:     d.l,
+		ConfigPath: d.c.loadedFrom,
+		Server:     d.m.Srv(),
+	})
+
 	d.m.ToggleStatusCommand()
 	d.m.Register(practice.Plugin(d.loginHandler(), d.c.Advanced.CachePath+"/worlds"), npc.Plugin())
 }
 
 func (d *Dystopia) loginHandler() *handlers.Login {
-	return practice.LoginHandler(d.c.Whitelist.Enabled, d.c.Whitelist.Players...).(*handlers.Login)
+	return handlers.NewLoginHandler()
 }
 
 func (d *Dystopia) loadPacks() (pool []*resource.Pack) {

@@ -1,20 +1,25 @@
 package lobby
 
 import (
+	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 )
 
 const name = "lobby"
 
-type impl struct {
-	*instance.Impl
-}
-
 func Instance() instance.Instance {
-	return &impl{Impl: instance.MustByName(name).(*instance.Impl)}
+	return instance.MustByName(name)
 }
 
-func (i *impl) Transfer(p *instance.Player, tx *world.Tx) {
-	i.Impl.Transfer(p, tx)
+func TransferWithRoutine(pl *instance.Player, tx *world.Tx) {
+	Instance().Transfer(pl, tx)
+
+	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+		if Instance().Active(pl.UUID()) {
+			p.Teleport(Instance().World().Spawn().Vec3Centre())
+		}
+
+		pl.SendKit(Kit, tx)
+	})
 }

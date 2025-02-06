@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -46,20 +47,20 @@ var instances = struct {
 func Register(name string, instance Instance) {
 	instances.mu.Lock()
 	defer instances.mu.Unlock()
-	instances.v[name] = instance
+	instances.v[strings.ToLower(name)] = instance
 }
 
 func UnRegister(name string) {
 	instances.mu.Lock()
 	defer instances.mu.Unlock()
-	delete(instances.v, name)
+	delete(instances.v, strings.ToLower(name))
 }
 
 func ByName(name string) (Instance, bool) {
 	instances.mu.RLock()
 	defer instances.mu.RUnlock()
 
-	instance, ok := instances.v[name]
+	instance, ok := instances.v[strings.ToLower(name)]
 	return instance, ok
 }
 

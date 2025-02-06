@@ -21,7 +21,3 @@ func Plugin(l *handlers.Login, worldsPath string) plugin.Plugin {
 	setupWorldsManager(m, worldsPath)
 	return plugin.New(plugin.MustUnmarshalConfig(config), task, l, handlers.NewPractice(lobby.Instance()))
 }
-
-func LoginHandler(whitelisted bool, players ...string) plugin.PlayerHandler {
-	return handlers.NewLoginHandler(whitelisted, players)
-}
