@@ -8,7 +8,7 @@
     "HeightThreshold": {
       "Enabled": true,
       "Threshold": 25,
-      "OnDeath": 0
+      "OnDeath": 1
     }
   }
 }

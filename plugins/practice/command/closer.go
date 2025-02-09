@@ -9,12 +9,30 @@ import (
 )
 
 type Closer struct {
-	onlyPlayer
-	Instance string
+	onlyOwner
+	Instance FFAInstance
+}
+
+type FFAInstance string
+
+func (FFAInstance) Type() string {
+	return "ffa"
+}
+
+func (FFAInstance) Options(s cmd.Source) []string {
+	var names []string
+
+	for _, i := range instance.AllInstances() {
+		if f, ok := i.(*ffa.Instance); ok {
+			names = append(names, f.Name())
+		}
+	}
+
+	return names
 }
 
 func (c Closer) Run(s cmd.Source, o *cmd.Output, tx *world.Tx) {
-	i, ok := instance.ByName(strings.ToLower(c.Instance))
+	i, ok := instance.ByName(strings.ToLower(string(c.Instance)))
 	if !ok {
 		o.Errorf("No instances with name %s", c.Instance)
 		return
@@ -22,20 +40,16 @@ func (c Closer) Run(s cmd.Source, o *cmd.Output, tx *world.Tx) {
 
 	f, isFfa := i.(*ffa.Instance)
 	if !isFfa {
-		o.Errorf("Instance %s is not a ffa.Instance, we cannot close it.", c.Instance)
+		o.Errorf("Instance %s is not ffa.", c.Instance)
 		return
 	}
 
 	if f.Closed() {
 		f.Open()
-		o.Printf("Opened %s", c.Instance)
+		systemMessage(o, "You've successfully opened <grey>%s</grey>", c.Instance)
 		return
 	}
 
 	f.Close(tx)
-	o.Printf("Closed %s", c.Instance)
-}
-
-func init() {
-	cmd.Register(cmd.New("close", "", nil, Closer{}))
+	systemMessage(o, "You've successfully closed <grey>%s</grey>", c.Instance)
 }

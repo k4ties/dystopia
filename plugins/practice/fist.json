@@ -1,13 +1,13 @@
 {
   "Config": {
-    "Name": "arena",
+    "Name": "fist",
 
     "Rotation": [0, 0],
-    "Spawn": [666, -34, 666],
+    "Spawn": [1488, 14, 1488],
 
     "HeightThreshold": {
       "Enabled": true,
-      "Threshold": -39,
+      "Threshold": 0,
       "OnDeath": 0
     }
   }

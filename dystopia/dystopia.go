@@ -5,7 +5,6 @@ import (
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/player/chat"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
-	"github.com/k4ties/df-plugin/example/npc"
 	"github.com/k4ties/dystopia/plugins/practice"
 	"github.com/k4ties/dystopia/plugins/practice/handlers"
 	"github.com/k4ties/dystopia/plugins/practice/handlers/whitelist"
@@ -48,7 +47,7 @@ func (d *Dystopia) setup() {
 	})
 
 	d.m.ToggleStatusCommand()
-	d.m.Register(practice.Plugin(d.loginHandler(), d.c.Advanced.CachePath+"/worlds"), npc.Plugin())
+	d.m.Register(practice.Plugin(d.loginHandler(), d.c.Advanced.CachePath+"/worlds", d.c.Advanced.Database))
 }
 
 func (d *Dystopia) loginHandler() *handlers.Login {

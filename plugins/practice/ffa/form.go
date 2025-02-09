@@ -7,6 +7,8 @@ import (
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 	"github.com/sandertv/gophertunnel/minecraft/text"
 	"slices"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -43,6 +45,7 @@ func NewForm() form.Menu {
 		}
 	}
 
+	sortButtons(buttons)
 	return blank.WithButtons(buttons...).WithBody(text.Colourf("<white>Playing:</white> <grey>%d</grey>", len(players)))
 }
 
@@ -51,5 +54,48 @@ func secondLine(ffa *Instance) string {
 		return text.Colourf("<red>Closed</red>")
 	}
 
-	return text.Colourf("<grey>%d</grey> <red>Playing</red>", len(slices.Collect(ffa.Players())))
+	return text.Colourf("<grey>%d</grey> <dark-grey>Playing</dark-grey>", len(slices.Collect(ffa.Players())))
+}
+
+func isClosed(s string) bool {
+	return text.Clean(getSecondLine(s)) == "Closed"
+}
+
+func getSecondLine(s string) string {
+	return strings.Split(s, "\n")[1]
+}
+
+func mustPlayerCount(s string) int {
+	c, err := strconv.Atoi(strings.Split(getSecondLine(text.Clean(s)), " ")[0])
+	if err != nil {
+		panic(err)
+	}
+
+	return c
+}
+
+func sortButtons(buttons []form.Button) {
+	sort.Slice(buttons, func(i, j int) bool {
+		if isClosed(buttons[i].Text) && isClosed(buttons[j].Text) {
+			return len(buttons[i].Text) > len(buttons[j].Text)
+		}
+		if isClosed(buttons[i].Text) && !isClosed(buttons[j].Text) {
+			return false
+		}
+		if !isClosed(buttons[i].Text) && isClosed(buttons[j].Text) {
+			return true
+		}
+		if isClosed(buttons[i].Text) {
+			return false
+		}
+		if isClosed(buttons[j].Text) {
+			return true
+		}
+
+		if mustPlayerCount(buttons[i].Text) == mustPlayerCount(buttons[j].Text) {
+			return len(buttons[i].Text) > len(buttons[j].Text)
+		}
+
+		return mustPlayerCount(buttons[i].Text) > mustPlayerCount(buttons[j].Text)
+	})
 }

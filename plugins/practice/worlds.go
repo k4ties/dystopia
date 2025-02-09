@@ -6,10 +6,14 @@ import (
 	plugin "github.com/k4ties/df-plugin/df-plugin"
 	"github.com/k4ties/dystopia/dystopia/embeddable"
 	"github.com/k4ties/dystopia/plugins/practice/ffa"
+	"github.com/k4ties/dystopia/plugins/practice/ffa/fist"
+	"github.com/k4ties/dystopia/plugins/practice/ffa/gapple"
 	"github.com/k4ties/dystopia/plugins/practice/ffa/nodebuff"
+	"github.com/k4ties/dystopia/plugins/practice/ffa/sumo"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 	"github.com/k4ties/dystopia/plugins/practice/mw"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
+	"time"
 )
 
 type WorldConfig struct {
@@ -26,13 +30,22 @@ type WorldConfig struct {
 var (
 	//go:embed lobby.json
 	lobbyJson []byte
-	//go:embed arena.json
+	//go:embed nodebuff.json
 	arenaJson []byte
+	//go:embed gapple.json
+	gappleJson []byte
+	//go:embed sumo.json
+	sumoJson []byte
+	//go:embed fist.json
+	fistJson []byte
 )
 
 var (
-	lobbyConfig = embeddable.MustJSON[WorldConfig](lobbyJson)
-	arenaConfig = embeddable.MustJSON[WorldConfig](arenaJson)
+	lobbyConfig  = embeddable.MustJSON[WorldConfig](lobbyJson)
+	arenaConfig  = embeddable.MustJSON[WorldConfig](arenaJson)
+	gappleConfig = embeddable.MustJSON[WorldConfig](gappleJson)
+	sumoConfig   = embeddable.MustJSON[WorldConfig](sumoJson)
+	fistConfig   = embeddable.MustJSON[WorldConfig](fistJson)
 )
 
 func setupWorldsManager(m *plugin.Manager, path string) {
@@ -41,7 +54,11 @@ func setupWorldsManager(m *plugin.Manager, path string) {
 	}
 
 	registerLobby(mw.M(), m)
+	// ffa
 	registerNodebuff(mw.M(), m)
+	registerGapple(mw.M(), m)
+	registerSumo(mw.M(), m)
+	registerFist(mw.M(), m)
 }
 
 func registerLobby(mn *mw.Manager, m *plugin.Manager) {
@@ -69,7 +86,7 @@ func registerNodebuff(mn *mw.Manager, m *plugin.Manager) {
 
 	w, ok := mn.World(name)
 	if !ok {
-		panic("must create a world called arena")
+		panic("no world with specified name on the config")
 	}
 
 	if err := mn.SetSpawn(name, arenaConfig.Config.Spawn); err != nil {
@@ -77,10 +94,79 @@ func registerNodebuff(mn *mw.Manager, m *plugin.Manager) {
 	}
 
 	in := instance.New(w, world.GameModeSurvival, m.Logger(), arenaConfig.Config.Rotation, arenaConfig.Config.HeightThreshold)
+
 	f := ffa.New(in.(*instance.Impl), nodebuff.Kit, ffa.Config{
 		Name: "NoDebuff",
 		Icon: "textures/items/potion_bottle_splash_heal.png",
+
+		PearlCooldown: time.Second * 15,
 	})
 
 	instance.Register("nodebuff", f)
+}
+
+func registerGapple(mn *mw.Manager, m *plugin.Manager) {
+	name := gappleConfig.Config.Name
+
+	w, ok := mn.World(name)
+	if !ok {
+		panic("no world with specified name on the config")
+	}
+
+	if err := mn.SetSpawn(name, gappleConfig.Config.Spawn); err != nil {
+		panic(err)
+	}
+
+	in := instance.New(w, world.GameModeSurvival, m.Logger(), gappleConfig.Config.Rotation, gappleConfig.Config.HeightThreshold)
+
+	f := ffa.New(in.(*instance.Impl), gapple.Kit, ffa.Config{
+		Name: "GApple",
+		Icon: "textures/items/apple_golden.png",
+	})
+
+	instance.Register("gapple", f)
+}
+
+func registerSumo(mn *mw.Manager, m *plugin.Manager) {
+	name := sumoConfig.Config.Name
+
+	w, ok := mn.World(name)
+	if !ok {
+		panic("no world with specified name on the config")
+	}
+
+	if err := mn.SetSpawn(name, sumoConfig.Config.Spawn); err != nil {
+		panic(err)
+	}
+
+	in := instance.New(w, world.GameModeSurvival, m.Logger(), sumoConfig.Config.Rotation, sumoConfig.Config.HeightThreshold)
+
+	f := ffa.New(in.(*instance.Impl), sumo.Kit, ffa.Config{
+		Name: "Sumo",
+		Icon: "textures/items/slimeball.png",
+	})
+
+	instance.Register("sumo", f)
+}
+
+func registerFist(mn *mw.Manager, m *plugin.Manager) {
+	name := fistConfig.Config.Name
+
+	w, ok := mn.World(name)
+	if !ok {
+		panic("no world with specified name on the config")
+	}
+
+	if err := mn.SetSpawn(name, fistConfig.Config.Spawn); err != nil {
+		panic(err)
+	}
+
+	in := instance.New(w, world.GameModeSurvival, m.Logger(), fistConfig.Config.Rotation, fistConfig.Config.HeightThreshold)
+
+	f := ffa.New(in.(*instance.Impl), fist.Kit, ffa.Config{
+		Name: "Fist",
+		Icon: "textures/items/beef_cooked.png",
+	})
+
+	instance.Register("fist", f)
 }

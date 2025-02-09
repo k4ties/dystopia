@@ -1,0 +1,14 @@
+{
+  "Config": {
+    "Name": "nodebuff",
+
+    "Rotation": [0, 0],
+    "Spawn": [666, -34, 666],
+
+    "HeightThreshold": {
+      "Enabled": true,
+      "Threshold": -39,
+      "OnDeath": 0
+    }
+  }
+}

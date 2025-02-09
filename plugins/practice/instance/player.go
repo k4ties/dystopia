@@ -7,6 +7,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
+	"github.com/k4ties/dystopia/plugins/practice/user"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -21,7 +22,8 @@ type Player struct {
 	instance   Instance
 	instanceMu sync.Mutex
 
-	c            session.Conn
+	c session.Conn
+
 	transferring atomic.Bool
 }
 
@@ -78,6 +80,16 @@ func (pl *Player) SendKit(k kit.Kit, tx *world.Tx) {
 
 func (pl *Player) Conn() (session.Conn, bool) {
 	return pl.c, pl.c != nil
+}
+
+func (pl *Player) MustConn() session.Conn {
+	c, ok := pl.Conn()
+	if !ok {
+		Kick(pl.Player, ErrorSponge)
+		return nil
+	}
+
+	return c
 }
 
 func (pl *Player) HideElements(e ...hud.Element) error {
@@ -176,6 +188,30 @@ func (pl *Player) enableChunkCache() {
 			Enabled: true,
 		})
 	}
+}
+
+func (pl *Player) User() (*user.User, bool) {
+	u, ok := user.ByUUID(pl.UUID())
+	if ok {
+		return u, true
+	}
+
+	u, ok = user.ByDeviceID(pl.DeviceID())
+	if ok {
+		return u, true
+	}
+
+	u, ok = user.ByXUID(pl.XUID())
+	if ok {
+		return u, true
+	}
+
+	u, ok = user.ByName(pl.Name())
+	if ok {
+		return u, true
+	}
+
+	return nil, false
 }
 
 func FadeInCamera(c session.Conn, dur float32, fadeIn bool) {

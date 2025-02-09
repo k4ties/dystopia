@@ -17,7 +17,6 @@ func (Decliner) HandleFoodLoss(ctx *player.Context, _ int, _ *int) {
 
 func (Decliner) HandleFireExtinguish(ctx *player.Context, _ cube.Pos) {
 	if ctx.Val().GameMode() != world.GameModeCreative {
-		ctx.Val().SetOnFire(0)
 		ctx.Cancel()
 	}
 }

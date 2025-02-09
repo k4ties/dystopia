@@ -13,9 +13,9 @@ func Instance() instance.Instance {
 }
 
 func TransferWithRoutine(pl *instance.Player, tx *world.Tx) {
-	Instance().Transfer(pl, tx)
-
 	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+		Instance().Transfer(pl, tx)
+
 		if Instance().Active(pl.UUID()) {
 			p.Teleport(Instance().World().Spawn().Vec3Centre())
 		}

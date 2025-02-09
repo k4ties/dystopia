@@ -27,6 +27,7 @@ type Config struct {
 		XBLAuth      bool   `yaml:"XBOX-Authentication"`
 		CachePath    string `yaml:"Cache-Path"`
 		DefaultWorld string `yaml:"Default-World"`
+		Database     string `yaml:"Database-Path"`
 	} `yaml:"Advanced"`
 
 	Resources struct {
@@ -132,6 +133,7 @@ func DefaultConfig() Config {
 	c.Advanced.Port = 19132
 	c.Advanced.XBLAuth = true
 	c.Advanced.DefaultWorld = ""
+	c.Advanced.Database = "dystopia.db"
 
 	c.Whitelist.Enabled = false
 	c.Whitelist.Players = []string{"player1", "player2"}

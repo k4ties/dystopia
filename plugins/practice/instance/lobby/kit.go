@@ -5,13 +5,11 @@ import (
 	"github.com/k4ties/dystopia/plugins/practice/kit"
 )
 
-var KitFFAItemIdentifier = "lobby.lobby"
-
 var Kit = func() kit.Kit {
 	stack := item.NewStack(item.Sword{Tier: item.ToolTierNetherite}, 1)
 
 	var items = make(kit.Items)
-	items[4] = kit.ApplyIdentifier(KitFFAItemIdentifier, kit.FillNames("FFA", stack))
+	items[4] = kit.ApplyIdentifier(kit.FFAIdentifier, kit.FillNames("FFA", stack))
 
 	return kit.New(items, kit.NopArmour)
 }()

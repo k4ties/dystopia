@@ -8,6 +8,8 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/text"
 )
 
+const owner = "i went tho"
+
 type onlyPlayer struct{}
 
 func (onlyPlayer) Allow(src cmd.Source) bool {
@@ -15,10 +17,15 @@ func (onlyPlayer) Allow(src cmd.Source) bool {
 	return ok
 }
 
-func systemMessage(s cmd.Source, format string, args ...any) {
-	if p, ok := s.(*player.Player); ok {
-		p.Messagef(text.Colourf("<red><b>>></b></red> ")+format, args...)
-	}
+type onlyOwner struct{}
+
+func (onlyOwner) Allow(src cmd.Source) bool {
+	p, ok := src.(*player.Player)
+	return ok && p.Name() == owner
+}
+
+func systemMessage(o *cmd.Output, format string, args ...any) {
+	o.Printf(text.Colourf("<red><b>>></b></red> %s", text.Colourf(format, args...)))
 }
 
 func p(s cmd.Source) *player.Player {

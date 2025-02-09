@@ -2,15 +2,17 @@ Dystopia:
     MOTD: <red>Dystopia</red>
     SubName: ""
 Whitelist:
-    Enabled: true
+    Enabled: false
     Players:
-        - i went tho
+        - player1
+        - player2
 Advanced:
     Port: 19132
     XBOX-Authentication: true
     Cache-Path: assets
     Default-World: ""
+    Database-Path: dystopia.db
 Resources:
     Path: assets/resources
     Required: true
-    Content-Key: A7a3GuYUqwrA6ZQhuUVhEFoqzrlKLzTs
+    Content-Key: enter key here

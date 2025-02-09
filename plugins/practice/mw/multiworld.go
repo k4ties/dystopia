@@ -37,7 +37,7 @@ func NewManager(w *world.World, path string, log *slog.Logger) error {
 		return fmt.Errorf("error loading world directory %s: %s", path, err)
 	}
 
-	m = &Manager{
+	manager := &Manager{
 		path: path,
 		log:  log,
 		w:    w,
@@ -49,11 +49,12 @@ func NewManager(w *world.World, path string, log *slog.Logger) error {
 		if !d.IsDir() {
 			continue
 		}
-		if _, err := m.CreateWorld(d.Name()); err != nil {
+		if _, err := manager.CreateWorld(d.Name()); err != nil {
 			return err
 		}
 	}
 
+	m = manager
 	return nil
 }
 
@@ -102,7 +103,6 @@ func (m *Manager) CreateWorld(name string) (*world.World, error) {
 	w.SetTickRange(0)
 	w.StopThundering()
 	w.StopRaining()
-
 	w.Handle(Handler{})
 
 	m.worldsMu.Lock()
@@ -133,10 +133,10 @@ func (m *Manager) DeleteWorld(name string) error {
 	}
 	m.worldsMu.Unlock()
 
-	err := os.RemoveAll(m.path + "/" + name)
-	if err != nil {
+	if err := os.RemoveAll(m.path + "/" + name); err != nil {
 		return fmt.Errorf("error deleting world %s: %s", name, err)
 	}
+
 	return nil
 }
 
