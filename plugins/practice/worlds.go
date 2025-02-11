@@ -99,7 +99,7 @@ func registerNodebuff(mn *mw.Manager, m *plugin.Manager) {
 		Name: "NoDebuff",
 		Icon: "textures/items/potion_bottle_splash_heal.png",
 
-		PearlCooldown: time.Second * 15,
+		PearlCooldown: time.Second * 16,
 	})
 
 	instance.Register("nodebuff", f)

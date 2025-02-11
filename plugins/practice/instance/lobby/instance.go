@@ -12,7 +12,7 @@ func Instance() instance.Instance {
 	return instance.MustByName(name)
 }
 
-func TransferWithRoutine(pl *instance.Player, tx *world.Tx) {
+func TransferWithRoutine(pl *instance.Player, _ *world.Tx) {
 	pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
 		Instance().Transfer(pl, tx)
 

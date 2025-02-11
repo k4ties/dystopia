@@ -33,6 +33,16 @@ type Impl struct {
 	heightThresholdStatus atomic.Bool
 	heightThreshold       int
 	heightThresholdMode   OnIntersectThreshold
+
+	onExit []func(*Player, Instance)
+}
+
+func (i *Impl) Player(u uuid.UUID) (*Player, bool) {
+	i.playersMu.RLock()
+	defer i.playersMu.RUnlock()
+
+	p, ok := i.players[u]
+	return p, ok
 }
 
 func (i *Impl) Messagef(s string, args ...any) {
@@ -79,7 +89,7 @@ func (i *Impl) Transfer(pl *Player, tx *world.Tx) {
 			}
 		}
 
-		pl.Instance().RemoveFromList(pl)
+		pl.Instance().removeFromList(pl)
 	}
 
 	//if e, ok := pl.H().Entity(tx); !ok || tx == nil {
@@ -152,7 +162,7 @@ func (i *Impl) addToList(p *Player) {
 	p.setInstance(i)
 }
 
-func (i *Impl) RemoveFromList(p *Player) {
+func (i *Impl) removeFromList(p *Player) {
 	if !i.Active(p.UUID()) {
 		panic("cannot remove from instance player that is not in instance")
 	}
@@ -160,6 +170,10 @@ func (i *Impl) RemoveFromList(p *Player) {
 	i.playersMu.Lock()
 	delete(i.players, p.UUID())
 	i.playersMu.Unlock()
+
+	for _, f := range i.onExit {
+		f(p, i)
+	}
 
 	p.setInstance(nil)
 }
@@ -244,5 +258,10 @@ func New(w *world.World, g world.GameMode, errorLogger *slog.Logger, defaultRot 
 		i.heightThresholdMode = htc.OnDeath
 	}
 
+	return i
+}
+
+func (i *Impl) WithOnExitFuncs(f ...func(*Player, Instance)) *Impl {
+	i.onExit = append(i.onExit, f...)
 	return i
 }

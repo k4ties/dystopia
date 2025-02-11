@@ -4,8 +4,8 @@ import (
 	"github.com/df-mc/dragonfly/server/entity/effect"
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/enchantment"
-	"github.com/df-mc/dragonfly/server/item/potion"
 	"github.com/k4ties/dystopia/plugins/practice/handlers"
+	items2 "github.com/k4ties/dystopia/plugins/practice/items"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
 	"github.com/sandertv/gophertunnel/minecraft/text"
 )
@@ -22,11 +22,11 @@ var Kit = func() kit.Kit {
 
 		switch i {
 		case 1:
-			added = item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 4)).WithLore(text.Colourf("<red>dystopia</red>"))
+			added = item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 6)).WithLore(text.Colourf("<red>dystopia</red>"))
 		case 2:
-			added = kit.ApplyIdentifier(kit.PearlIdentifier, item.NewStack(item.EnderPearl{}, 16).WithLore(text.Colourf("<red>dystopia</red>")))
+			added = kit.ApplyIdentifier(kit.PearlIdentifier, item.NewStack(items2.Pearl{}, 16).WithLore(text.Colourf("<red>dystopia</red>")))
 		default:
-			added = item.NewStack(item.SplashPotion{Type: potion.StrongHealing()}, 1).WithLore(text.Colourf("<red>dystopia</red>"))
+			added = kit.ApplyIdentifier(kit.PotIdentifier, item.NewStack(items2.NewHealingPotion(), 1).WithLore(text.Colourf("<red>dystopia</red>")))
 		}
 
 		items[i-1] = added

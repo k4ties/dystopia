@@ -21,12 +21,13 @@ type Instance interface {
 
 	NewPlayer(*player.Player) *Player
 	Players() iter.Seq[*Player]
+	Player(uuid.UUID) (*Player, bool)
 
 	Active(uuid.UUID) bool
 	Transfer(*Player, *world.Tx)
 
 	addToList(*Player)
-	RemoveFromList(*Player)
+	removeFromList(*Player)
 
 	HeightThresholdEnabled() bool
 	HeightThresholdMode() OnIntersectThreshold
@@ -86,19 +87,19 @@ func NewPlayer(p *player.Player) *Player {
 	return pl
 }
 
-func LookupPlayer(pl *player.Player) *Player {
+func LookupPlayer(pl *player.Player) (*Player, Instance) {
 	for _, inst := range AllInstances() {
 		if inst.Active(pl.UUID()) {
 			for p := range inst.Players() {
 				if p.UUID() == pl.UUID() {
-					return p
+					return p, inst
 				}
 			}
 			break
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func AllInstances() []Instance {
@@ -122,8 +123,11 @@ func AllInstancesName() []string {
 
 var Nop = nopInstance{}
 
+var _ = (Instance)(Nop)
+
 type nopInstance struct{}
 
+func (n nopInstance) Player(uuid.UUID) (*Player, bool)          { return nil, false }
 func (n nopInstance) Messagef(string, ...any)                   {}
 func (n nopInstance) HeightThresholdMode() OnIntersectThreshold { return -1 }
 func (n nopInstance) HeightThresholdEnabled() bool              { return false }
@@ -135,6 +139,8 @@ func (n nopInstance) ErrorLog() *slog.Logger                    { return nil }
 func (n nopInstance) NewPlayer(*player.Player) *Player          { return nil }
 func (n nopInstance) Players() iter.Seq[*Player]                { return nil }
 func (n nopInstance) Active(uuid.UUID) bool                     { return false }
-func (n nopInstance) Transfer(*Player, *world.Tx)               {}
-func (n nopInstance) addToList(*Player)                         {}
-func (n nopInstance) RemoveFromList(*Player)                    {}
+func (n nopInstance) Transfer(p *Player, tx *world.Tx) {
+	p.Instance().removeFromList(p)
+}
+func (n nopInstance) addToList(*Player)      {}
+func (n nopInstance) removeFromList(*Player) {}

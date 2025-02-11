@@ -2,9 +2,10 @@ package command
 
 import (
 	"github.com/df-mc/dragonfly/server/cmd"
+	"github.com/df-mc/dragonfly/server/entity/effect"
+	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/k4ties/dystopia/plugins/practice/ffa"
-	"github.com/k4ties/dystopia/plugins/practice/instance"
 )
 
 type ReKit struct {
@@ -12,17 +13,14 @@ type ReKit struct {
 }
 
 func (ReKit) Run(s cmd.Source, o *cmd.Output, tx *world.Tx) {
-	if pl := inPl(s); pl != nil {
-		for _, i := range instance.AllInstances() {
-			if f, ok := i.(*ffa.Instance); ok {
-				if f.Active(pl.UUID()) {
-					pl.SendKit(f.Kit(), tx)
-					systemMessage(o, "You've successfully rekitted.")
-					return
-				}
-			}
-		}
-
+	pl, in := ffa.LookupPlayer(s.(*player.Player))
+	if pl == nil || in == nil {
 		o.Errorf("You're not in ffa.")
+		return
 	}
+
+	in.ReKit(pl, tx)
+	pl.Heal(pl.MaxHealth(), effect.InstantHealingSource{})
+
+	systemMessage(o, "You've successfully rekitted.")
 }

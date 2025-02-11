@@ -2,6 +2,7 @@ package handlers
 
 import (
 	_ "embed"
+	"github.com/bedrock-gophers/cooldown/cooldown"
 	"github.com/df-mc/atomic"
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/cmd"
@@ -19,8 +20,8 @@ import (
 	"github.com/k4ties/dystopia/plugins/practice/ffa"
 	"github.com/k4ties/dystopia/plugins/practice/instance"
 	"github.com/k4ties/dystopia/plugins/practice/instance/lobby"
+	"github.com/k4ties/dystopia/plugins/practice/items"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
-	"github.com/k4ties/dystopia/plugins/practice/rank"
 	"github.com/k4ties/dystopia/plugins/practice/user"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/text"
@@ -61,23 +62,7 @@ func (pr *Practice) HandleSpawn(p *player.Player) {
 	}
 
 	welcomePlayer(p)
-	pl := pr.spawnRoutine(p, p.Tx())
-
-	if c := pl.MustConn(); c != nil {
-		if _, ok := pl.User(); !ok {
-			user.Register(user.New(c, user.OfflineUser{
-				IPS:       []string{p.Addr().String()},
-				DeviceIDS: []string{p.DeviceID()},
-				FirstJoin: time.Now(),
-				Name:      p.Name(),
-				XUID:      p.XUID(),
-				UUID:      p.UUID().String(),
-				Deaths:    0,
-				Kills:     0,
-				Rank:      rank.Player,
-			}))
-		}
-	}
+	_ = pr.spawnRoutine(p, p.Tx())
 }
 
 func (pr *Practice) spawnRoutine(p *player.Player, tx *world.Tx) *instance.Player {
@@ -94,7 +79,7 @@ func (pr *Practice) spawnRoutine(p *player.Player, tx *world.Tx) *instance.Playe
 }
 
 func (pr *Practice) HandleMove(ctx *player.Context, newPos mgl64.Vec3, _ cube.Rotation) {
-	if p := instance.LookupPlayer(ctx.Val()); p != nil {
+	if p, i := instance.LookupPlayer(ctx.Val()); p != nil && i != nil {
 		if i := p.Instance(); i != instance.Nop {
 			if i.HeightThresholdEnabled() {
 				if newPos.Y() <= float64(i.HeightThreshold()) && p.GameMode() == i.GameMode() && !p.Transferring() {
@@ -121,9 +106,13 @@ func (i intersectThresholdCause) Fire() bool                { return false }
 func (pr *Practice) HandleQuit(p *player.Player) {
 	_, _ = chat.Global.WriteString(text.Colourf(QuitFormat, p.Name()))
 
-	if pl := instance.LookupPlayer(p); pl != nil {
+	if fpl, in := ffa.LookupPlayer(p); fpl != nil && in != nil {
+		in.ResetPearlCooldown(fpl)
+	}
+
+	if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
 		if i := pl.Instance(); i != instance.Nop {
-			i.RemoveFromList(pl)
+			instance.Nop.Transfer(pl, nil)
 		}
 
 		if u, ok := pl.User(); ok {
@@ -144,12 +133,26 @@ func countPots(inv *inventory.Inventory) int {
 	return count
 }
 
+func countGApples(inv *inventory.Inventory) int {
+	var count int
+
+	for _, i := range inv.Items() {
+		if _, isGApple := i.Item().(item.GoldenApple); isGApple {
+			count++
+		}
+	}
+
+	return count
+}
+
 func (pr *Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keepInv *bool) {
 	*keepInv = true
-	potsBeforeDeath := countPots(dfp.Inventory())
 
-	pl := instance.LookupPlayer(dfp)
-	if pl == nil {
+	potsBeforeDeath := countPots(dfp.Inventory())
+	gapplesBeforeDeath := countGApples(dfp.Inventory())
+
+	pl, in := instance.LookupPlayer(dfp)
+	if pl == nil || in == nil {
 		return
 	}
 
@@ -175,7 +178,7 @@ func (pr *Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keep
 			killerName = p.Name()
 			killer = p
 
-			if pl := instance.LookupPlayer(p); pl != nil {
+			if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
 				killerIn = pl
 
 				if u, ok := pl.User(); ok {
@@ -186,18 +189,20 @@ func (pr *Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keep
 	}
 
 	if killerName != "..." {
-		if i := pl.Instance(); i != instance.Nop {
+		if f, ok := instance.GetTypedInstance[*ffa.Instance](pl); ok {
 			plr, in := ffa.LookupPlayer(dfp)
 
 			if plr != nil || in != nil {
 				if kitIncludesPotions(in.Kit()) {
-					i.Messagef("<red>%s</red> [%d POTS] was killed by <red>%s</red> [%d POTS]", dfp.Name(), potsBeforeDeath, killerName, countPots(killer.Inventory()))
+					f.Messagef("<red>%s</red> [%d POTS] was killed by <red>%s</red> [%d POTS]", dfp.Name(), potsBeforeDeath, killerName, countPots(killer.Inventory()))
+				} else if kitIncludesGApples(in.Kit()) {
+					f.Messagef("<red>%s</red> [%d GAPPLES] was killed by <red>%s</red> [%d GAPPLES]", dfp.Name(), gapplesBeforeDeath, killerName, countGApples(killer.Inventory()))
 				} else {
-					i.Messagef("<red>%s</red> was killed by <red>%s</red>", dfp.Name(), killerName)
+					f.Messagef("<red>%s</red> was killed by <red>%s</red>", dfp.Name(), killerName)
 				}
 
 				if killerIn != nil {
-					killerIn.SendKit(in.Kit(), killer.Tx())
+					f.ReKit(pl, pl.Tx())
 				}
 			}
 		}
@@ -231,14 +236,65 @@ func kitIncludesPotions(k kit.Kit) bool {
 	return false
 }
 
+func kitIncludesGApples(k kit.Kit) bool {
+	for _, i := range k.Items() {
+		if _, isGApple := i.Item().(item.GoldenApple); isGApple {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (pr *Practice) HandleItemUseOnBlock(ctx *player.Context, _ cube.Pos, _ cube.Face, _ mgl64.Vec3) {
+	reHandleItemUse(ctx)
+}
+
 func (pr *Practice) HandleItemUse(ctx *player.Context) {
+	reHandleItemUse(ctx)
+}
+
+func reHandleItemUse(ctx *player.Context) {
 	i, _ := ctx.Val().HeldItems()
 
 	switch kit.LoadIdentifier(i) {
 	case kit.FFAIdentifier:
 		ctx.Val().SendForm(ffa.NewForm())
+		ctx.Cancel()
 	case kit.PearlIdentifier:
-		ctx.Val().Messagef("pearl used")
+		ctx.Val().SetCooldown(items.Pearl{}, 0)
+
+		pl, in := ffa.LookupPlayer(ctx.Val())
+		if pl == nil || in == nil {
+			return
+		}
+
+		if in.HasPearCooldown() {
+			in.MustCoolDown(pl.UUID(), func(c *cooldown.CoolDown) {
+				if c.Active() {
+					ctx.Cancel()
+					ctx.Val().SendJukeboxPopup(text.Reset + text.Colourf("<red>Please wait %d more seconds to use pearl again", int(c.Remaining().Seconds())))
+					return
+				}
+
+				if !c.Active() {
+					in.StartPearlCoolDown(pl, nil)
+					ctx.Val().Messagef(text.Colourf("<red>Pearl cooldown has started</red>"))
+				}
+			})
+		}
+	case kit.PotIdentifier:
+		// do nothing
+	default:
+		ctx.Cancel()
+	}
+}
+
+func (pr *Practice) HandleHeal(ctx *player.Context, health *float64, src world.HealingSource) {
+	if pl, in := ffa.LookupPlayer(ctx.Val()); pl != nil && in != nil {
+		if _, ok := src.(effect.InstantHealingSource); ok {
+			*health *= 2.5
+		}
 	}
 }
 
@@ -290,7 +346,7 @@ func removeExtraSpaces(s string) string {
 	return strings.Join(words, " ")
 }
 
-func (pr *Practice) HandleCommandExecution(ctx *player.Context, cmd cmd.Command, args []string) {
+func (pr *Practice) HandleCommandExecution(ctx *player.Context, _ cmd.Command, _ []string) {
 	if time.Since(pr.lastCommandAt.Load()) <= time.Second/2 {
 		ctx.Val().Messagef(text.Colourf("<red>Please don't spam</red>"))
 		ctx.Cancel()
@@ -345,20 +401,14 @@ func (pr *Practice) HandleHurt(ctx *player.Context, damage *float64, _ bool, att
 	}
 }
 
-const scoreTagFormat = "\uE10C %d <red>|</red> %dms"
-
-func (pr *Practice) HandleClientPacket(ctx *player.Context, pk packet.Packet) {
-	switch pk := pk.(type) {
-	case *packet.PlayerAuthInput:
-		if p := instance.LookupPlayer(ctx.Val()); p != nil {
-			if i := p.Instance(); i != instance.Nop {
-				scoreTagTask(i, p)
-				updateInputTask(pk, p)
-
-			}
-		}
+func (pr *Practice) HandleTick(p *player.Player, _ *packet.PlayerAuthInput) {
+	if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
+		scoreTagTask(in, pl)
+		//updateInputTask(pk, pl)
 	}
 }
+
+const scoreTagFormat = "\uE10C %d <red>|</red> %dms"
 
 func scoreTagTask(i instance.Instance, p *instance.Player) {
 	if i == lobby.Instance() || p.GameMode() == world.GameModeSpectator {
@@ -394,6 +444,13 @@ func (pr *Practice) HandleAttackEntity(ctx *player.Context, attacked world.Entit
 
 	if isCritical(p) {
 		reHandleCritical(p, attacked, p.Tx())
+	}
+}
+
+func (pr *Practice) HandleClientPacket(ctx *player.Context, pk packet.Packet) {
+	switch pk := pk.(type) {
+	case *packet.PlayerAuthInput:
+		pr.HandleTick(ctx.Val(), pk)
 	}
 }
 

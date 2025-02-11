@@ -56,6 +56,18 @@ func (pl *Player) Instance() Instance {
 	return pl.instance
 }
 
+func GetTypedInstance[T any](pl *Player) (T, bool) {
+	for _, i := range AllInstances() {
+		if i.Active(pl.UUID()) {
+			v, ok := i.(T)
+			return v, ok
+		}
+	}
+
+	var nop T
+	return nop, false
+}
+
 type WithinTransaction func(p *player.Player)
 
 func (pl *Player) ExecSafe(f func(*player.Player, *world.Tx), w ...WithinTransaction) {

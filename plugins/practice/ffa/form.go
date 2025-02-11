@@ -17,7 +17,7 @@ type Form struct{}
 func (Form) Submit(s form.Submitter, pressed form.Button, tx *world.Tx) {
 	if i, ok := instance.ByName(text.Clean(strings.Split(pressed.Text, "\n")[0])); ok {
 		if f, ok := i.(*Instance); ok {
-			if pl := instance.LookupPlayer(s.(*player.Player)); pl != nil {
+			if pl, in := instance.LookupPlayer(s.(*player.Player)); pl != nil && in != nil {
 				f.Transfer(pl, tx)
 			}
 		}

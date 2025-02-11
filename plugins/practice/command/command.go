@@ -33,7 +33,8 @@ func p(s cmd.Source) *player.Player {
 }
 
 func inPl(s cmd.Source) *instance.Player {
-	return instance.LookupPlayer(p(s))
+	pl, _ := instance.LookupPlayer(p(s))
+	return pl
 }
 
 func dead(s cmd.Source) bool {
