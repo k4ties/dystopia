@@ -202,7 +202,9 @@ func (pr *Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keep
 				}
 
 				if killerIn != nil {
-					f.ReKit(pl, pl.Tx())
+					pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+						f.ReKit(pl, tx)
+					})
 				}
 			}
 		}
@@ -402,10 +404,12 @@ func (pr *Practice) HandleHurt(ctx *player.Context, damage *float64, _ bool, att
 }
 
 func (pr *Practice) HandleTick(p *player.Player, _ *packet.PlayerAuthInput) {
-	if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
-		scoreTagTask(in, pl)
-		//updateInputTask(pk, pl)
-	}
+	go func() {
+		if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
+			scoreTagTask(in, pl)
+			//updateInputTask(pk, pl)
+		}
+	}()
 }
 
 const scoreTagFormat = "\uE10C %d <red>|</red> %dms"
