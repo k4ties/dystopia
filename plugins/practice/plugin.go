@@ -17,11 +17,6 @@ func Plugin(l *handlers.Login, worldsPath, databasePath string) plugin.Plugin {
 	m := plugin.M()
 
 	task := m.NewTask(func(m *plugin.Manager) {
-		//if _, err := database.New(m.Logger(), databasePath); err != nil {
-		//	panic(err)
-		//}
-		//user.RegisterFromDB()
-
 		cmd.Register(cmd.New("ffa", "Requests FFA form", nil, command.FFA{}))
 		cmd.Register(cmd.New("hub", "Teleports you to the lobby", nil, command.Hub{}))
 		cmd.Register(cmd.New("rekit", "Resends kit if you're in ffa", nil, command.ReKit{}))

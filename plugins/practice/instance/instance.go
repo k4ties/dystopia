@@ -84,6 +84,8 @@ func NewPlayer(p *player.Player) *Player {
 	}
 
 	pl.enableChunkCache()
+	pl.limitChunks(16)
+
 	return pl
 }
 

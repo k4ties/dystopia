@@ -3,6 +3,8 @@ package kit
 var (
 	FFAIdentifier = "lobby.lobby"
 
-	PearlIdentifier = "nodebuff.pearl"
-	PotIdentifier   = "nodebuff.pot"
+	NodebuffSwordIdentifier = "nodebuff.sword"
+	PearlIdentifier         = "nodebuff.pearl"
+	PotIdentifier           = "nodebuff.pot"
+	GAppleIdentifier        = "gapple.gapple"
 )

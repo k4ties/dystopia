@@ -3,11 +3,11 @@
     "Name": "nodebuff",
 
     "Rotation": [0, 0],
-    "Spawn": [666, -34, 666],
+    "Spawn": [-6666, 65, -6666],
 
     "HeightThreshold": {
       "Enabled": true,
-      "Threshold": -39,
+      "Threshold": 30,
       "OnDeath": 0
     }
   }

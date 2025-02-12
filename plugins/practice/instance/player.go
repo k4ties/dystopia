@@ -7,7 +7,6 @@ import (
 	"github.com/df-mc/dragonfly/server/world"
 	plugin "github.com/k4ties/df-plugin/df-plugin"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
-	"github.com/k4ties/dystopia/plugins/practice/user"
 	"github.com/k4ties/dystopia/plugins/practice/user/hud"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
@@ -102,6 +101,12 @@ func (pl *Player) MustConn() session.Conn {
 	}
 
 	return c
+}
+
+func (pl *Player) limitChunks(v int) {
+	if c := pl.MustConn(); c != nil {
+		_ = c.WritePacket(&packet.ChunkRadiusUpdated{ChunkRadius: int32(v)})
+	}
 }
 
 func (pl *Player) HideElements(e ...hud.Element) error {
@@ -200,30 +205,6 @@ func (pl *Player) enableChunkCache() {
 			Enabled: true,
 		})
 	}
-}
-
-func (pl *Player) User() (*user.User, bool) {
-	u, ok := user.ByUUID(pl.UUID())
-	if ok {
-		return u, true
-	}
-
-	u, ok = user.ByDeviceID(pl.DeviceID())
-	if ok {
-		return u, true
-	}
-
-	u, ok = user.ByXUID(pl.XUID())
-	if ok {
-		return u, true
-	}
-
-	u, ok = user.ByName(pl.Name())
-	if ok {
-		return u, true
-	}
-
-	return nil, false
 }
 
 func FadeInCamera(c session.Conn, dur float32, fadeIn bool) {

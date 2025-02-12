@@ -22,7 +22,7 @@ var Kit = func() kit.Kit {
 
 		switch i {
 		case 1:
-			added = item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 6)).WithLore(text.Colourf("<red>dystopia</red>"))
+			added = kit.ApplyIdentifier(kit.NodebuffSwordIdentifier, item.NewStack(item.Sword{Tier: item.ToolTierDiamond}, 1).WithEnchantments(item.NewEnchantment(enchantment.Sharpness, 6)).WithLore(text.Colourf("<red>dystopia</red>")))
 		case 2:
 			added = kit.ApplyIdentifier(kit.PearlIdentifier, item.NewStack(items2.Pearl{}, 16).WithLore(text.Colourf("<red>dystopia</red>")))
 		default:

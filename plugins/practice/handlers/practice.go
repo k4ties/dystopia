@@ -22,8 +22,6 @@ import (
 	"github.com/k4ties/dystopia/plugins/practice/instance/lobby"
 	"github.com/k4ties/dystopia/plugins/practice/items"
 	"github.com/k4ties/dystopia/plugins/practice/kit"
-	"github.com/k4ties/dystopia/plugins/practice/user"
-	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/text"
 	"regexp"
 	"strings"
@@ -114,10 +112,6 @@ func (pr *Practice) HandleQuit(p *player.Player) {
 		if i := pl.Instance(); i != instance.Nop {
 			instance.Nop.Transfer(pl, nil)
 		}
-
-		if u, ok := pl.User(); ok {
-			u.Dystopia().SyncQuit()
-		}
 	}
 }
 
@@ -125,7 +119,7 @@ func countPots(inv *inventory.Inventory) int {
 	var count int
 
 	for _, i := range inv.Items() {
-		if _, isPot := i.Item().(item.SplashPotion); isPot {
+		if _, isPot := i.Item().(items.HealingPotion); isPot {
 			count++
 		}
 	}
@@ -138,99 +132,110 @@ func countGApples(inv *inventory.Inventory) int {
 
 	for _, i := range inv.Items() {
 		if _, isGApple := i.Item().(item.GoldenApple); isGApple {
-			count++
+			count += i.Count()
 		}
 	}
 
 	return count
 }
 
-func (pr *Practice) HandleDeath(dfp *player.Player, src world.DamageSource, keepInv *bool) {
+func (pr *Practice) HandleDeath(deadPlayer *player.Player, src world.DamageSource, keepInv *bool) {
 	*keepInv = true
+	deadPlayerPl, deadPlayerIn := ffa.LookupPlayer(deadPlayer) // player can only be dead on ffa
 
-	potsBeforeDeath := countPots(dfp.Inventory())
-	gapplesBeforeDeath := countGApples(dfp.Inventory())
+	deadPlayerGapplesBeforeDeath := countGApples(deadPlayer.Inventory())
+	deadPlayerPotsBeforeDeath := countPots(deadPlayer.Inventory())
 
-	pl, in := instance.LookupPlayer(dfp)
-	if pl == nil || in == nil {
+	if deadPlayerPl == nil || deadPlayerIn == nil {
 		return
 	}
 
-	pl.SendKit(kit.Empty, dfp.Tx())
-
-	if u, ok := pl.User(); ok {
-		u.Dystopia().Death()
-	}
-
 	if _, ok := src.(intersectThresholdCause); ok {
-		if i := pl.Instance(); i != instance.Nop {
-			i.Messagef("<red>%s</red> fell into the void.", dfp.Name())
-		}
+		deadPlayerIn.Messagef("<red>%s</red> fell into the void", deadPlayer.Name())
 	}
 
 	var killerName = "..."
-	var killer *player.Player
+	var killerIsInstancePlayer = false
 
-	var killerIn *instance.Player
+	var (
+		killerPl *instance.Player
+		killerIn *ffa.Instance
+	)
 
 	if a, ok := src.(entity.AttackDamageSource); ok {
-		if p, ok := a.Attacker.(*player.Player); ok {
-			killerName = p.Name()
-			killer = p
+		if attackerP, ok := a.Attacker.(*player.Player); ok {
+			pl, in := ffa.LookupPlayer(attackerP)
+			if pl != nil && in != nil {
+				killerIsInstancePlayer = true
+				killerName = pl.Name()
 
-			if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
-				killerIn = pl
-
-				if u, ok := pl.User(); ok {
-					u.Dystopia().Kill()
-				}
+				killerPl = pl
+				killerIn = in
 			}
 		}
 	}
 
-	if killerName != "..." {
-		if f, ok := instance.GetTypedInstance[*ffa.Instance](pl); ok {
-			plr, in := ffa.LookupPlayer(dfp)
+	deadPlayerPl.Reset(nil, func(p *player.Player) {
+		p.SetGameMode(world.GameModeSpectator)
+	}, func(p *player.Player) {
+		t := title.New(text.Red + "YOU'RE DEAD")
+		t = t.WithSubtitle(text.Grey + killerName)
+		t = t.WithDuration(time.Second * 3)
+		p.SendTitle(t)
+	})
 
-			if plr != nil || in != nil {
-				if kitIncludesPotions(in.Kit()) {
-					f.Messagef("<red>%s</red> [%d POTS] was killed by <red>%s</red> [%d POTS]", dfp.Name(), potsBeforeDeath, killerName, countPots(killer.Inventory()))
-				} else if kitIncludesGApples(in.Kit()) {
-					f.Messagef("<red>%s</red> [%d GAPPLES] was killed by <red>%s</red> [%d GAPPLES]", dfp.Name(), gapplesBeforeDeath, killerName, countGApples(killer.Inventory()))
-				} else {
-					f.Messagef("<red>%s</red> was killed by <red>%s</red>", dfp.Name(), killerName)
-				}
+	if killerIsInstancePlayer {
+		var msg = formatDeadMessage(DeadMessageBlank, deadPlayer.Name(), killerName)
 
-				if killerIn != nil {
-					pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
-						f.ReKit(pl, tx)
-					})
-				}
-			}
+		if kitIncludesPotions(deadPlayerIn.Kit()) {
+			msg = formatDeadMessage(DeadMessageCount, deadPlayer.Name(), deadPlayerPotsBeforeDeath, "POTS", killerName, countPots(killerPl.Inventory()), "POTS")
+		} else if kitIncludesGApples(deadPlayerIn.Kit()) {
+			msg = formatDeadMessage(DeadMessageCount, deadPlayer.Name(), deadPlayerGapplesBeforeDeath, "GAPPLES", killerName, countGApples(killerPl.Inventory()), "GAPPLES")
 		}
+
+		deadPlayerIn.Messagef(msg)
+		killerIn.ReKit(killerPl, nil)
 	}
 
-	dur := time.Second / 2
-
-	deadTitle := title.New(text.Colourf("<red>YOU ARE DEAD</red>"))
-	deadTitle = deadTitle.WithDuration(dur * 5).WithFadeInDuration(dur).WithFadeOutDuration(dur).WithSubtitle(killerName)
-
-	dfp.SendTitle(deadTitle)
-	dfp.SetGameMode(world.GameModeSpectator)
-
-	time.AfterFunc(time.Second*3, func() {
-		if plugin.M().Online(dfp.UUID()) {
-			pl.ExecSafe(func(p *player.Player, tx *world.Tx) {
-				pr.i.Transfer(pl, tx)
-				pr.spawnRoutine(p, tx)
+	time.AfterFunc(time.Second*4, func() {
+		if plugin.M().Online(deadPlayer.UUID()) {
+			deadPlayerPl.ExecSafe(func(p *player.Player, tx *world.Tx) {
+				lobby.TransferWithRoutine(deadPlayerPl, tx)
 			})
 		}
 	})
 }
 
+const (
+	DeadMessageBlankFormat = "<red>%s</red> was killed by <red>%s</red>"
+	DeadMessageCountFormat = "<red>%s</red> [%d %s] was killed by <red>%s</red> [%d %s]"
+)
+
+const (
+	DeadMessageBlank = iota
+	DeadMessageCount
+)
+
+func formatDeadMessage(index int, args ...any) string {
+	switch index {
+	case DeadMessageBlank:
+		if len(args) < 2 {
+			panic("not enough arguments")
+		}
+		return text.Colourf(DeadMessageBlankFormat, args...)
+	case DeadMessageCount:
+		if len(args) < 6 {
+			panic("not enough arguments")
+		}
+		return text.Colourf(DeadMessageCountFormat, args...)
+	}
+
+	panic("should never happen")
+}
+
 func kitIncludesPotions(k kit.Kit) bool {
 	for _, i := range k.Items() {
-		if _, isPot := i.Item().(item.SplashPotion); isPot {
+		if _, isPot := i.Item().(items.HealingPotion); isPot {
 			return true
 		}
 	}
@@ -249,11 +254,22 @@ func kitIncludesGApples(k kit.Kit) bool {
 }
 
 func (pr *Practice) HandleItemUseOnBlock(ctx *player.Context, _ cube.Pos, _ cube.Face, _ mgl64.Vec3) {
-	reHandleItemUse(ctx)
+	reHandleItemUseOnBlock(ctx)
 }
 
 func (pr *Practice) HandleItemUse(ctx *player.Context) {
 	reHandleItemUse(ctx)
+}
+
+func reHandleItemUseOnBlock(ctx *player.Context) {
+	i, _ := ctx.Val().HeldItems()
+
+	switch kit.LoadIdentifier(i) {
+	case kit.GAppleIdentifier, kit.PotIdentifier, kit.PearlIdentifier:
+		// do nothing, just allow itemUse to re handle it
+	default:
+		ctx.Cancel()
+	}
 }
 
 func reHandleItemUse(ctx *player.Context) {
@@ -263,32 +279,25 @@ func reHandleItemUse(ctx *player.Context) {
 	case kit.FFAIdentifier:
 		ctx.Val().SendForm(ffa.NewForm())
 		ctx.Cancel()
+	case kit.NodebuffSwordIdentifier:
+		ctx.Cancel()
 	case kit.PearlIdentifier:
-		ctx.Val().SetCooldown(items.Pearl{}, 0)
+		ctx.Val().SetCooldown(items.Pearl{}, -1)
 
-		pl, in := ffa.LookupPlayer(ctx.Val())
-		if pl == nil || in == nil {
-			return
-		}
+		if pl, in := ffa.LookupPlayer(ctx.Val()); pl != nil && in != nil {
+			if in.HasPearCooldown() {
+				in.MustCoolDown(pl.UUID(), func(c *cooldown.CoolDown) {
+					if c.Active() {
+						ctx.Val().SendJukeboxPopup(text.Reset + text.Colourf("<red>Please wait %d more seconds to use pearl again", int(c.Remaining().Seconds())))
+						ctx.Cancel()
+						return
+					}
 
-		if in.HasPearCooldown() {
-			in.MustCoolDown(pl.UUID(), func(c *cooldown.CoolDown) {
-				if c.Active() {
-					ctx.Cancel()
-					ctx.Val().SendJukeboxPopup(text.Reset + text.Colourf("<red>Please wait %d more seconds to use pearl again", int(c.Remaining().Seconds())))
-					return
-				}
-
-				if !c.Active() {
 					in.StartPearlCoolDown(pl, nil)
 					ctx.Val().Messagef(text.Colourf("<red>Pearl cooldown has started</red>"))
-				}
-			})
+				})
+			}
 		}
-	case kit.PotIdentifier:
-		// do nothing
-	default:
-		ctx.Cancel()
 	}
 }
 
@@ -399,17 +408,9 @@ func (pr *Practice) HandleHurt(ctx *player.Context, damage *float64, _ bool, att
 	}
 
 	if isPlayer && isCritical(attacker) {
+		reHandleCritical(attacker, ctx.Val(), ctx.Val().Tx())
 		*damage *= 1.5
 	}
-}
-
-func (pr *Practice) HandleTick(p *player.Player, _ *packet.PlayerAuthInput) {
-	go func() {
-		if pl, in := instance.LookupPlayer(p); pl != nil && in != nil {
-			scoreTagTask(in, pl)
-			//updateInputTask(pk, pl)
-		}
-	}()
 }
 
 const scoreTagFormat = "\uE10C %d <red>|</red> %dms"
@@ -427,35 +428,11 @@ func scoreTagTask(i instance.Instance, p *instance.Player) {
 	})
 }
 
-func updateInputTask(pk *packet.PlayerAuthInput, p *instance.Player) {
-	if u, ok := p.User(); ok {
-		currentMode := user.InputMode(pk.InputMode)
-
-		if u.Dystopia().InputMode() != currentMode {
-			u.Dystopia().SwitchInputMode(currentMode)
-		}
-	}
-}
-
-func (pr *Practice) HandleAttackEntity(ctx *player.Context, attacked world.Entity, force, height *float64, crit *bool) {
+func (pr *Practice) HandleAttackEntity(_ *player.Context, _ world.Entity, force, height *float64, critical *bool) {
 	*force = KnockbackConfig.KnockBack.Force
 	*height = KnockbackConfig.KnockBack.Height
 
-	*crit = false // prevents double hit 🤡
-
-	// since we've cancelled critical, we need to handle it by ourselves
-	p := ctx.Val()
-
-	if isCritical(p) {
-		reHandleCritical(p, attacked, p.Tx())
-	}
-}
-
-func (pr *Practice) HandleClientPacket(ctx *player.Context, pk packet.Packet) {
-	switch pk := pk.(type) {
-	case *packet.PlayerAuthInput:
-		pr.HandleTick(ctx.Val(), pk)
-	}
+	*critical = false // prevents double hit 🤡
 }
 
 func reHandleCritical(p *player.Player, attacked world.Entity, tx *world.Tx) {

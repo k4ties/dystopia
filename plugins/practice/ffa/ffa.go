@@ -124,7 +124,7 @@ func (i *Instance) StartPearlCoolDown(p *instance.Player, c context.Context) con
 		i.addCooldownCancelFunc(p.UUID(), cancel)
 
 		p.SetExperienceLevel(int(i.PearlCooldown().Seconds()) - 1)
-		p.SetExperienceProgress(0.99)
+		p.SetExperienceProgress(0.99) // if we will make 1.0 it will be new level
 
 		go func() {
 			var showMessage = true
@@ -201,20 +201,18 @@ func (i *Instance) OnExit(pl *instance.Player, _ instance.Instance) {
 	i.ResetPearlCooldown(pl)
 	i.removeFromCooldownList(pl.UUID())
 
-	if i.Active(pl.UUID()) {
-		i.Messagef(text.Colourf(QuitFormat, pl.Name(), i.c.Name, i.playerLen()))
-	}
+	i.Messagef(text.Colourf(QuitFormat, pl.Name(), i.c.Name, i.playerLen()-1))
 }
 
-func (i *Instance) ResetPearlCooldown(p *instance.Player) {
-	if i.cooldownCancelFuncAvailable(p.UUID()) {
-		f := i.cooldownCancelFunc(p.UUID())
+func (i *Instance) ResetPearlCooldown(pl *instance.Player) {
+	if i.cooldownCancelFuncAvailable(pl.UUID()) {
+		f := i.cooldownCancelFunc(pl.UUID())
 		f()
 
-		i.removeCooldownCancelFunc(p.UUID())
+		i.removeCooldownCancelFunc(pl.UUID())
 
-		p.SetExperienceLevel(0)
-		p.SetExperienceProgress(0)
+		pl.SetExperienceLevel(0)
+		pl.SetExperienceProgress(0)
 	}
 }
 
