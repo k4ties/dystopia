@@ -1,0 +1,27 @@
+=============== Feb 12, 2025 (MSK) ===============
+10:18:10.104351 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+10:18:10.104855 version@stat F·[0 1] S·350KiB[0B 350KiB] Sc·[0.00 0.00]
+10:18:10.104855 db@open opening
+10:18:10.105860 journal@recovery F·1
+10:18:10.107862 journal@recovery recovering @96
+10:18:10.115805 memdb@flush created L0@98 N·151 S·25KiB "Aut..ies,v57940":"~lo..yer,v57806"
+10:18:10.116911 version@stat F·[1 1] S·376KiB[25KiB 350KiB] Sc·[0.25 0.00]
+10:18:10.122796 db@janitor F·6 G·2
+10:18:10.123311 db@janitor removing table-93
+10:18:10.123842 db@janitor removing table-95
+10:18:10.124366 db@open done T·19.5115ms
+10:18:38.027691 table@compaction L0·1 -> L1·1 S·376KiB Q·57952
+10:18:38.117949 table@build created L1@101 N·37793 S·397KiB "\x00\x00\x00..\x00\x00+,v57441":"\xff\xff\xff..\xff\xffA,v463"
+10:18:38.117949 version@stat F·[0 1] S·397KiB[0B 397KiB] Sc·[0.00 0.00]
+10:18:38.119287 table@compaction committed F-1 S+21KiB Ke·0 D·152 T·89.3158ms
+10:18:38.120288 table@remove removed @97
+=============== Feb 12, 2025 (MSK) ===============
+10:20:05.054245 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+10:20:05.055248 version@stat F·[0 1] S·397KiB[0B 397KiB] Sc·[0.00 0.00]
+10:20:05.055248 db@open opening
+10:20:05.055248 journal@recovery F·1
+10:20:05.057768 journal@recovery recovering @99
+10:20:05.059097 version@stat F·[0 1] S·397KiB[0B 397KiB] Sc·[0.00 0.00]
+10:20:05.067758 db@janitor F·4 G·1
+10:20:05.067758 db@janitor removing table-98
+10:20:05.067758 db@open done T·12.5101ms
