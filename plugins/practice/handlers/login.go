@@ -6,6 +6,7 @@ import (
 	plugin "github.com/k4ties/df-plugin/df-plugin"
 	"github.com/k4ties/dystopia/plugins/practice/handlers/whitelist"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
+	"strings"
 )
 
 type Login struct {
@@ -20,7 +21,7 @@ func NewLoginHandler() *Login {
 
 func (l *Login) HandleLogin(ctx *event.Context[session.Conn]) {
 	if whitelist.Enabled() {
-		name := ctx.Val().IdentityData().DisplayName
+		name := strings.ToLower(ctx.Val().IdentityData().DisplayName)
 
 		if !whitelist.Whitelisted(name) {
 			_ = ctx.Val().WritePacket(&packet.Disconnect{
